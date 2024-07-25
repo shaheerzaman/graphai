@@ -9,6 +9,7 @@ license = "MIT"
 
 [tool.poetry.dependencies]
 python = ">=3.9,<3.13"
+semantic-router = "^0.0.54"
 
 [tool.poetry.group.dev.dependencies]
 ipykernel = "^6.25.0"
