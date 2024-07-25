@@ -17,9 +17,9 @@ class NodeMeta(type):
 
 class _Node:
     def __init__(self):
-        self._func_signature = None
+        pass
 
-    def _node(self, func: Callable) -> Callable:
+    def _node(self, func: Callable, start: bool = False, end: bool = False) -> Callable:
         """Decorator validating node structure.
         """
         if not callable(func):
@@ -43,45 +43,43 @@ class _Node:
                 return func(*bound_args.args, **bound_args.kwargs)
 
             @classmethod
+            def get_signature(cls):
+                """Returns the signature of the decorated function as LLM readable
+                string.
+                """
+                signature_components = []
+                if NodeClass._func_signature:
+                    for param in NodeClass._func_signature.parameters.values():
+                        if param.default is param.empty:
+                            signature_components.append(f"{param.name}: {param.annotation}")
+                        else:
+                            signature_components.append(f"{param.name}: {param.annotation} = {param.default}")
+                else:
+                    return "No signature"
+                return "\n".join(signature_components)
+
+            @classmethod
             def invoke(cls, input: Dict[str, Any]):
                 instance = cls(**input)
                 return instance.execute()
 
         NodeClass.__name__ = func.__name__
         NodeClass.__doc__ = func.__doc__
+        NodeClass.is_start = start
+        NodeClass.is_end = end
 
         return NodeClass
 
-    def __call__(self, func: Optional[Callable] = None):
+    def __call__(self, func: Optional[Callable] = None, start: bool = False, end: bool = False):
         # We must wrap the call to the decorator in a function for it to work
         # correctly with or without parenthesis
         def wrap(func: Callable) -> Callable:
-            return self._node(func)
+            return self._node(func=func, start=start, end=end)
         if func:
             # Decorator is called without parenthesis
-            return wrap(func)
+            return wrap(func=func, start=start, end=end)
         # Decorator is called with parenthesis
         return wrap
-    
-    def _get_signature(self) -> inspect.Signature:
-        """Returns the signature of the decorated function.
-        """
-        return self._func_signature
-    
-    def signature(self):
-        """Returns the signature of the decorated function as LLM readable
-        string.
-        """
-        signature_str = ""
-        if self._func_signature:
-            for param in self._func_signature.parameters.values():
-                if param.default is param.empty:
-                    signature_str += f"{param.name}: {param.annotation}"
-                else:
-                    signature_str += f"{param.name}: {param.annotation} = {param.default}"
-        else:
-            return "No signature"
-        return signature_str
 
 
 node = _Node()
