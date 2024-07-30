@@ -1,3 +1,3 @@
-from graphai.nodes.base import node
+from graphai.nodes.base import node, router
 
-__all__ = ["node"]
+__all__ = ["node", "router"]

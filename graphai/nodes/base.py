@@ -16,8 +16,8 @@ class NodeMeta(type):
 
 
 class _Node:
-    def __init__(self):
-        pass
+    def __init__(self, is_router: bool = False):
+        self.is_router = is_router
 
     def _node(self, func: Callable, start: bool = False, end: bool = False) -> Callable:
         """Decorator validating node structure.
@@ -29,6 +29,7 @@ class _Node:
 
         class NodeClass:
             _func_signature = func_signature
+            is_router = None
 
             def __init__(self, *args, **kwargs):
                 bound_args = self._func_signature.bind(*args, **kwargs)
@@ -64,16 +65,18 @@ class _Node:
                 return instance.execute()
 
         NodeClass.__name__ = func.__name__
+        NodeClass.name = func.__name__
         NodeClass.__doc__ = func.__doc__
         NodeClass.is_start = start
         NodeClass.is_end = end
+        NodeClass.is_router = self.is_router
 
         return NodeClass
 
     def __call__(self, func: Optional[Callable] = None, start: bool = False, end: bool = False):
         # We must wrap the call to the decorator in a function for it to work
         # correctly with or without parenthesis
-        def wrap(func: Callable) -> Callable:
+        def wrap(func: Callable, start=start, end=end) -> Callable:
             return self._node(func=func, start=start, end=end)
         if func:
             # Decorator is called without parenthesis
@@ -83,3 +86,4 @@ class _Node:
 
 
 node = _Node()
+router = _Node(is_router=True)
