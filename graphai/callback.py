@@ -1,6 +1,10 @@
 import asyncio
 from typing import Optional
+from collections.abc import AsyncIterator
+from semantic_router.utils.logger import logger
 
+
+log_stream = True
 
 class Callback:
     first_token = True
@@ -20,6 +24,16 @@ class Callback:
         self._check_node_name(node_name=node_name)
         # otherwise we just assume node is correct and send token
         self.queue.put_nowait(token)
+    
+    async def aiter(self) -> AsyncIterator[str]:
+        if log_stream:
+            logger.info("[*]  Stream Started")
+        while True:
+            token = await self.queue.get()
+            yield token
+        # await asyncio.sleep(10)
+        if log_stream:
+            logger.info("[X]  Stream Closed")
 
     async def start_node(self, node_name: str, active: bool = True):
         self.current_node_name = node_name
