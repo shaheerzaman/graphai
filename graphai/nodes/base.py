@@ -38,28 +38,14 @@ class _Node:
             raise ValueError("Node must be a callable function.")
         
         func_signature = inspect.signature(func)
-        parameters = list(func_signature.parameters.values())
-
-        # Automatically add 'callback' parameter if 'stream' is True and 'callback' is not in parameters
-        if stream and 'callback' not in func_signature.parameters:
-            callback_param = inspect.Parameter(
-                'callback',
-                inspect.Parameter.KEYWORD_ONLY,
-                default=None,
-                annotation=Callback
-            )
-            parameters.append(callback_param)
-            # update the function signature
-            func_signature = func_signature.replace(parameters=parameters)
-            func.__signature__ = func_signature
+        logger.info(f"JB TEMP !!!: {stream=}")
 
         class NodeClass:
             _func_signature = func_signature
             is_router = None
+            _stream = stream
 
-            def __init__(self, *args, callback=None, **kwargs):
-                if self.stream:
-                    self.callback = callback
+            def __init__(self, *args, **kwargs):
                 bound_args = self._func_signature.bind(*args, **kwargs)
                 bound_args.apply_defaults()
                 for name, value in bound_args.arguments.items():
@@ -67,14 +53,15 @@ class _Node:
 
             def execute(self):
                 # Bind the current instance attributes to the function signature
-                logger.info(f"JB TEMP !!!: {self.__dict__=}")
+                if "callback" in self.__dict__.keys() and not stream:
+                    raise ValueError(
+                        f"Node {func.__name__}: requires stream=True when callback is defined."
+                    )
                 bound_args = self._func_signature.bind(**self.__dict__)
-                logger.info(f"JB TEMP !!!: {bound_args=}")
                 bound_args.apply_defaults()
                 # Prepare arguments, including callback if stream is True
                 args_dict = bound_args.arguments.copy()  # Copy arguments to modify safely
-                if self.stream and 'callback' in self.__dict__:
-                    args_dict['callback'] = self.callback
+                logger.info(f"JB TEMP !!!: {args_dict=}")
                 return func(**args_dict)  # Pass only the necessary arguments
 
             @classmethod
@@ -95,9 +82,18 @@ class _Node:
 
             @classmethod
             def invoke(cls, input: Dict[str, Any], callback: Optional[Callback] = None):
-                logger.info(f"JB TEMP !!!: {input=}")
-                if callback and cls.stream:
-                    self.callback = callback
+                logger.info(f"JB TEMP !!!: {func.__name__=}")
+                logger.info(f"TEST: {input=}")
+                if callback:
+                    logger.info(f"JB TEMP !!!: {stream=}")
+                    if stream:
+                        logger.info(f"JB TEMP !!!: {callback=}")
+                        input["callback"] = callback
+                    else:
+                        raise ValueError(
+                            f"Error in node {func.__name__}. When callback provided, stream must be True."
+                        )
+                logger.info(f"TEST 2: {input=}")
                 instance = cls(**input)
                 out = instance.execute()
                 return out
