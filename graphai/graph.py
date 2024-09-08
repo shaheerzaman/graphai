@@ -1,6 +1,7 @@
 from typing import List
 from graphai.nodes.base import _Node
 from graphai.callback import Callback
+from semantic_router.utils.logger import logger
 
 
 class Graph:
@@ -9,6 +10,7 @@ class Graph:
         self.edges = []
         self.start_node = None
         self.end_nodes = []
+        self.Callback = Callback
         self.callback = None
 
     def add_node(self, node):
@@ -58,12 +60,15 @@ class Graph:
 
     async def async_execute(self, input):
         # TODO JB: may need to add init callback here to init the queue on every new execution
+        if self.callback is None:
+            self.callback = self.get_callback()
         current_node = self.start_node
         state = input
-        while current_node not in self.end_nodes:
+        while True:
             # we invoke the node here
             if current_node.stream:
                 if self.callback is None:
+                    # TODO JB: can remove?
                     raise ValueError("No callback provided to graph. Please add it via `.add_callback`.")
                 # add callback tokens and param here if we are streaming
                 await self.callback.start_node(node_name=current_node.name)
@@ -82,6 +87,8 @@ class Graph:
             if current_node.is_end:
                 break
         # TODO JB: may need to add end callback here to close the queue for every execution
+        if self.callback:
+            await self.callback.close()
         return state
 
     def execute(self, input):
@@ -112,8 +119,9 @@ class Graph:
         # TODO JB: may need to add end callback here to close the queue for every execution
         return state
 
-    def add_callback(self, callback: Callback):
-        self.callback = callback
+    def get_callback(self):
+        self.callback = self.Callback()
+        return self.callback
 
     def _get_node_by_name(self, node_name: str) -> _Node:
         for node in self.nodes:

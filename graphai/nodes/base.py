@@ -38,7 +38,6 @@ class _Node:
             raise ValueError("Node must be a callable function.")
         
         func_signature = inspect.signature(func)
-        logger.info(f"JB TEMP !!!: {stream=}")
 
         class NodeClass:
             _func_signature = func_signature
@@ -61,7 +60,6 @@ class _Node:
                 bound_args.apply_defaults()
                 # Prepare arguments, including callback if stream is True
                 args_dict = bound_args.arguments.copy()  # Copy arguments to modify safely
-                logger.info(f"JB TEMP !!!: {args_dict=}")
                 return func(**args_dict)  # Pass only the necessary arguments
 
             @classmethod
@@ -82,18 +80,13 @@ class _Node:
 
             @classmethod
             def invoke(cls, input: Dict[str, Any], callback: Optional[Callback] = None):
-                logger.info(f"JB TEMP !!!: {func.__name__=}")
-                logger.info(f"TEST: {input=}")
                 if callback:
-                    logger.info(f"JB TEMP !!!: {stream=}")
                     if stream:
-                        logger.info(f"JB TEMP !!!: {callback=}")
                         input["callback"] = callback
                     else:
                         raise ValueError(
                             f"Error in node {func.__name__}. When callback provided, stream must be True."
                         )
-                logger.info(f"TEST 2: {input=}")
                 instance = cls(**input)
                 out = instance.execute()
                 return out

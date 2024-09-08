@@ -26,14 +26,16 @@ class Callback:
         self.queue.put_nowait(token)
     
     async def aiter(self) -> AsyncIterator[str]:
-        if log_stream:
-            logger.info("[*]  Stream Started")
+        """Used by receiver to get the tokens from the stream queue. Creates
+        a generator that yields tokens from the queue until the END token is
+        received.
+        """
         while True:
             token = await self.queue.get()
             yield token
-        # await asyncio.sleep(10)
-        if log_stream:
-            logger.info("[X]  Stream Closed")
+            self.queue.task_done()
+            if token == "<graphai:END>":
+                break
 
     async def start_node(self, node_name: str, active: bool = True):
         self.current_node_name = node_name
@@ -48,6 +50,9 @@ class Callback:
         self.current_node_name = None
         if self.active:
             self.queue.put_nowait(f"<graphai:end:{node_name}>")
+
+    async def close(self):
+        self.queue.put_nowait("<graphai:END>")
 
     def _check_node_name(self, node_name: Optional[str] = None):
         if node_name:
