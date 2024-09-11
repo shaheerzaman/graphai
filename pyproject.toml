@@ -8,8 +8,8 @@ packages = [{include = "graphai"}]
 license = "MIT"
 
 [tool.poetry.dependencies]
-python = ">=3.9,<3.13"
-semantic-router = "^0.0.54"
+python = ">=3.10,<3.13"
+semantic-router = "0.0.65"
 
 [tool.poetry.group.dev.dependencies]
 ipykernel = "^6.25.0"
