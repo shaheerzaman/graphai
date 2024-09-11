@@ -58,7 +58,7 @@ class Graph:
         # Implement validation logic, e.g., checking for cycles, disconnected components, etc.
         return True
 
-    async def async_execute(self, input):
+    async def execute(self, input):
         # TODO JB: may need to add init callback here to init the queue on every new execution
         if self.callback is None:
             self.callback = self.get_callback()
@@ -72,10 +72,10 @@ class Graph:
                     raise ValueError("No callback provided to graph. Please add it via `.add_callback`.")
                 # add callback tokens and param here if we are streaming
                 await self.callback.start_node(node_name=current_node.name)
-                state = current_node.invoke(input=state, callback=self.callback)
+                state = await current_node.invoke(input=state, callback=self.callback)
                 await self.callback.end_node(node_name=current_node.name)
             else:
-                state = current_node.invoke(input=state)
+                state = await current_node.invoke(input=state)
             if current_node.is_router:
                 # if we have a router node we let the router decide the next node
                 next_node_name = str(state["choice"])
@@ -89,34 +89,6 @@ class Graph:
         # TODO JB: may need to add end callback here to close the queue for every execution
         if self.callback:
             await self.callback.close()
-        return state
-
-    def execute(self, input):
-        # TODO JB: may need to add init callback here to init the queue on every new execution
-        current_node = self.start_node
-        state = input
-        while current_node not in self.end_nodes:
-            # we invoke the node here
-            if current_node.stream:
-                if self.callback is None:
-                    raise ValueError("No callback provided to graph. Please add it via `.add_callback`.")
-                # add callback tokens and param here if we are streaming
-                self.callback.start_node(node_name=current_node.name)
-                state = current_node.invoke(input=state, callback=self.callback)
-                self.callback.end_node(node_name=current_node.name)
-            else:
-                state = current_node.invoke(input=state)
-            if current_node.is_router:
-                # if we have a router node we let the router decide the next node
-                next_node_name = str(state["choice"])
-                del state["choice"]
-                current_node = self._get_node_by_name(next_node_name)
-            else:
-                # otherwise, we have linear path
-                current_node = self._get_next_node(current_node, state)
-            if current_node.is_end:
-                break
-        # TODO JB: may need to add end callback here to close the queue for every execution
         return state
 
     def get_callback(self):
