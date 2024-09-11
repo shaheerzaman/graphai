@@ -50,7 +50,7 @@ class _Node:
                 for name, value in bound_args.arguments.items():
                     setattr(self, name, value)
 
-            def execute(self):
+            async def execute(self):
                 # Bind the current instance attributes to the function signature
                 if "callback" in self.__dict__.keys() and not stream:
                     raise ValueError(
@@ -60,7 +60,7 @@ class _Node:
                 bound_args.apply_defaults()
                 # Prepare arguments, including callback if stream is True
                 args_dict = bound_args.arguments.copy()  # Copy arguments to modify safely
-                return func(**args_dict)  # Pass only the necessary arguments
+                return await func(**args_dict)  # Pass only the necessary arguments
 
             @classmethod
             def get_signature(cls):
@@ -79,7 +79,7 @@ class _Node:
                 return "\n".join(signature_components)
 
             @classmethod
-            def invoke(cls, input: Dict[str, Any], callback: Optional[Callback] = None):
+            async def invoke(cls, input: Dict[str, Any], callback: Optional[Callback] = None):
                 if callback:
                     if stream:
                         input["callback"] = callback
@@ -88,7 +88,7 @@ class _Node:
                             f"Error in node {func.__name__}. When callback provided, stream must be True."
                         )
                 instance = cls(**input)
-                out = instance.execute()
+                out = await instance.execute()
                 return out
 
         NodeClass.__name__ = func.__name__
