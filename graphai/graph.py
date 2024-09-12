@@ -1,17 +1,18 @@
-from typing import List
+from typing import List, Dict, Any
 from graphai.nodes.base import _Node
 from graphai.callback import Callback
 from semantic_router.utils.logger import logger
 
 
 class Graph:
-    def __init__(self):
+    def __init__(self, max_steps: int = 10):
         self.nodes = []
         self.edges = []
         self.start_node = None
         self.end_nodes = []
         self.Callback = Callback
         self.callback = None
+        self.max_steps = max_steps
 
     def add_node(self, node):
         self.nodes.append(node)
@@ -52,11 +53,17 @@ class Graph:
             raise Exception("No end nodes defined.")
         if not self._is_valid():
             raise Exception("Graph is not valid.")
-        print("Graph compiled successfully.")
 
     def _is_valid(self):
         # Implement validation logic, e.g., checking for cycles, disconnected components, etc.
         return True
+
+    def _validate_output(self, output: Dict[str, Any], node_name: str):
+        if not isinstance(output, dict):
+            raise ValueError(
+                f"Expected dictionary output from node {node_name}. "
+                f"Instead, got {type(output)} from '{output}'."
+            )
 
     async def execute(self, input):
         # TODO JB: may need to add init callback here to init the queue on every new execution
@@ -64,31 +71,40 @@ class Graph:
             self.callback = self.get_callback()
         current_node = self.start_node
         state = input
+        steps = 0
         while True:
             # we invoke the node here
             if current_node.stream:
-                if self.callback is None:
-                    # TODO JB: can remove?
-                    raise ValueError("No callback provided to graph. Please add it via `.add_callback`.")
                 # add callback tokens and param here if we are streaming
                 await self.callback.start_node(node_name=current_node.name)
-                state = await current_node.invoke(input=state, callback=self.callback)
+                output = await current_node.invoke(input=state, callback=self.callback)
+                self._validate_output(output=output, node_name=current_node.name)
                 await self.callback.end_node(node_name=current_node.name)
             else:
-                state = await current_node.invoke(input=state)
+                output = await current_node.invoke(input=state)
+                self._validate_output(output=output, node_name=current_node.name)
             if current_node.is_router:
                 # if we have a router node we let the router decide the next node
-                next_node_name = str(state["choice"])
-                del state["choice"]
-                current_node = self._get_node_by_name(next_node_name)
+                next_node_name = str(output["choice"])
+                del output["choice"]
+                current_node = self._get_node_by_name(node_name=next_node_name)
             else:
                 # otherwise, we have linear path
-                current_node = self._get_next_node(current_node, state)
+                current_node = self._get_next_node(current_node=current_node)
+            # add output to state
+            state = {**state, **output}
             if current_node.is_end:
                 break
+            steps += 1
+            if steps >= self.max_steps:
+                raise Exception(
+                    f"Max steps reached: {self.max_steps}. You can modify this "
+                    "by setting `max_steps` when initializing the Graph object."
+                )
         # TODO JB: may need to add end callback here to close the queue for every execution
         if self.callback:
             await self.callback.close()
+            del state["callback"]
         return state
 
     def get_callback(self):
@@ -101,7 +117,7 @@ class Graph:
                 return node
         raise Exception(f"Node with name {node_name} not found.")
 
-    def _get_next_node(self, current_node, output):
+    def _get_next_node(self, current_node):
         for edge in self.edges:
             if edge.source == current_node:
                 return edge.destination
