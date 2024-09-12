@@ -2,7 +2,7 @@ import inspect
 from typing import Any, Callable, Dict, Optional
 
 from graphai.callback import Callback
-from semantic_router.utils.logger import logger
+from graphai.utils import FunctionSchema
 
 
 class NodeMeta(type):
@@ -38,29 +38,54 @@ class _Node:
             raise ValueError("Node must be a callable function.")
         
         func_signature = inspect.signature(func)
+        schema = FunctionSchema(func)
 
         class NodeClass:
             _func_signature = func_signature
             is_router = None
             _stream = stream
 
-            def __init__(self, *args, **kwargs):
-                bound_args = self._func_signature.bind(*args, **kwargs)
-                bound_args.apply_defaults()
-                for name, value in bound_args.arguments.items():
-                    setattr(self, name, value)
+            def __init__(self):
+                self._expected_params = set(self._func_signature.parameters.keys())
 
-            async def execute(self):
+            async def execute(self, *args, **kwargs):
+                # Prepare arguments, including callback if stream is True
+                params_dict = await self._parse_params(*args, **kwargs)
+                return await func(**params_dict)  # Pass only the necessary arguments
+
+            async def _parse_params(self, *args, **kwargs) -> Dict[str, Any]:
+                # filter out unexpected keyword args
+                expected_kwargs = {k: v for k, v in kwargs.items() if k in self._expected_params}
+                # Convert args to kwargs based on the function signature
+                args_names = list(self._func_signature.parameters.keys())[1:len(args)+1]  # skip 'self'
+                expected_args_kwargs = dict(zip(args_names, args))
+                # Combine filtered args and kwargs
+                combined_params = {**expected_args_kwargs, **expected_kwargs}
+
                 # Bind the current instance attributes to the function signature
-                if "callback" in self.__dict__.keys() and not stream:
+                if "callback" in self._expected_params and not stream:
                     raise ValueError(
                         f"Node {func.__name__}: requires stream=True when callback is defined."
                     )
-                bound_args = self._func_signature.bind(**self.__dict__)
-                bound_args.apply_defaults()
-                # Prepare arguments, including callback if stream is True
-                args_dict = bound_args.arguments.copy()  # Copy arguments to modify safely
-                return await func(**args_dict)  # Pass only the necessary arguments
+                bound_params = self._func_signature.bind_partial(**combined_params)
+                # get the default parameters (if any)
+                bound_params.apply_defaults()
+                params_dict = bound_params.arguments.copy()
+                # Filter arguments to match the next node's parameters
+                filtered_params = {
+                    k: v for k, v in params_dict.items() if k in self._expected_params
+                }
+                # confirm all required parameters are present
+                missing_params = [
+                    p for p in self._expected_params if p not in filtered_params
+                ]
+                # if anything is missing we raise an error
+                if missing_params:
+                    raise ValueError(
+                        f"Missing required parameters for the {func.__name__} node: {', '.join(missing_params)}"
+                    )
+                return filtered_params
+
 
             @classmethod
             def get_signature(cls):
@@ -87,8 +112,8 @@ class _Node:
                         raise ValueError(
                             f"Error in node {func.__name__}. When callback provided, stream must be True."
                         )
-                instance = cls(**input)
-                out = await instance.execute()
+                instance = cls()
+                out = await instance.execute(**input)
                 return out
 
         NodeClass.__name__ = func.__name__
@@ -98,7 +123,7 @@ class _Node:
         NodeClass.is_end = end
         NodeClass.is_router = self.is_router
         NodeClass.stream = stream
-
+        NodeClass.schema = schema
         return NodeClass
 
     def __call__(
