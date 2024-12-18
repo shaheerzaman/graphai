@@ -10,6 +10,8 @@ license = "MIT"
 [tool.poetry.dependencies]
 python = ">=3.10,<3.13"
 semantic-router = ">=0.1.0.dev4"
+networkx = "^3.4.2"
+matplotlib = "^3.10.0"
 
 [tool.poetry.group.dev.dependencies]
 ipykernel = "^6.25.0"
@@ -20,9 +22,6 @@ pytest-cov = "^4.1.0"
 pytest-xdist = "^3.5.0"
 mypy = "^1.7.1"
 black = {extras = ["jupyter"], version = ">=23.12.1,<24.5.0"}
-
-[tool.poetry.extras]
-visualize = ["networkx", "matplotlib"]
 
 [build-system]
 requires = ["poetry-core"]
