@@ -83,6 +83,11 @@ class Graph:
             else:
                 output = await current_node.invoke(input=state)
                 self._validate_output(output=output, node_name=current_node.name)
+            # add output to state
+            state = {**state, **output}
+            if current_node.is_end:
+                # finish loop if this was an end node
+                break
             if current_node.is_router:
                 # if we have a router node we let the router decide the next node
                 next_node_name = str(output["choice"])
@@ -91,10 +96,6 @@ class Graph:
             else:
                 # otherwise, we have linear path
                 current_node = self._get_next_node(current_node=current_node)
-            # add output to state
-            state = {**state, **output}
-            if current_node.is_end:
-                break
             steps += 1
             if steps >= self.max_steps:
                 raise Exception(
