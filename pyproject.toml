@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "graphai"
+name = "graph-ai"
 version = "0.0.1"
 description = ""
 authors = ["Aurelio AI <hello@aurelio.ai>"]
