@@ -10,6 +10,8 @@ license = "MIT"
 [tool.poetry.dependencies]
 python = ">=3.10,<3.13"
 semantic-router = ">=0.1.0.dev4"
+networkx = "^3.4.2"
+matplotlib = "^3.10.0"
 
 [tool.poetry.group.dev.dependencies]
 ipykernel = "^6.25.0"
