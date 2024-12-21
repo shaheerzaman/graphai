@@ -142,6 +142,8 @@ class Callback:
         self._done = True  # Mark as done after processing all tokens
 
     async def start_node(self, node_name: str, active: bool = True):
+        """Starts a new node and emits the start token.
+        """
         if self._done:
             raise RuntimeError("Cannot start node on a closed stream")
         self.current_node_name = node_name
@@ -150,7 +152,7 @@ class Callback:
         self.active = active
         if self.active:
             token = await self._build_special_token(
-                name="start",
+                name=f"{self.current_node_name}:start",
                 params=None
             )
             self.queue.put_nowait(token)
@@ -162,17 +164,17 @@ class Callback:
             self.queue.put_nowait(node_token)
     
     async def end_node(self, node_name: str):
+        """Emits the end token for the current node.
+        """
         if self._done:
             raise RuntimeError("Cannot end node on a closed stream")
-        self.current_node_name = node_name
+        #self.current_node_name = node_name
         if self.active:
             node_token = await self._build_special_token(
-                name=self.current_node_name,
+                name=f"{self.current_node_name}:end",
                 params=None
             )
             self.queue.put_nowait(node_token)
-            # TODO JB: should we use two tokens here or jump to END only?
-            await self.close()
 
     async def close(self):
         """Close the stream and prevent further tokens from being added.

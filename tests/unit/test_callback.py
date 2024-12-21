@@ -19,14 +19,14 @@ async def define_graph():
     
     @node(stream=True)
     async def node_a(input: str, callback: Callback):
-        tokens = ["Hello", " ", "World", "!"]
+        tokens = ["Hello", "World", "!"]
         for token in tokens:
             await callback.acall(token)
         return {"input": input}
     
     @node(stream=True)
     async def node_b(input: str, callback: Callback):
-        tokens = ["Here", " ", "is", " ", "node", " ", "B", "!"]
+        tokens = ["Here", "is", "node", "B", "!"]
         for token in tokens:
             await callback.acall(token)
         return {"input": input}
@@ -38,7 +38,7 @@ async def define_graph():
     
     @node(stream=True)
     async def node_d(input: str, callback: Callback):
-        tokens = ["Here", " ", "is", " ", "node", " ", "D", "!"]
+        tokens = ["Here", "is", "node", "D", "!"]
         for token in tokens:
             await callback.acall(token)
         return {"input": input}
@@ -55,6 +55,8 @@ async def define_graph():
         graph.add_node(node_fn)
         if i > 0:
             graph.add_edge(nodes[i-1], node_fn)
+
+    graph.compile()
     
     return graph
 
@@ -87,7 +89,7 @@ class TestCallbackConfig:
         assert cb.special_token_format == "[{identifier}:{token}:{params}]"
         assert cb.token_format == "<<{token}>>"
         # create streaming task
-        response = asyncio.create_task(stream(cb, "Hello"))
+        asyncio.create_task(stream(cb, "Hello"))
         out_tokens = []
         # now stream
         async for token in cb.aiter():
@@ -99,7 +101,7 @@ class TestCallbackConfig:
         """Test default tokens"""
         cb = Callback()
         # create streaming task
-        response = asyncio.create_task(stream(cb, "Hello"))
+        asyncio.create_task(stream(cb, "Hello"))
         out_tokens = []
         # now stream
         async for token in cb.aiter():
@@ -115,13 +117,51 @@ class TestCallbackConfig:
             token_format="<<{token}>>"
         )
         # create streaming task
-        response = asyncio.create_task(stream(cb, "Hello"))
+        asyncio.create_task(stream(cb, "Hello"))
         out_tokens = []
         # now stream
         async for token in cb.aiter():
             out_tokens.append(token)
         assert out_tokens == ["Hello", "[custom:END:]"]
-    
+
+
+class TestCallbackGraph:
+    @pytest.mark.asyncio
+    async def test_callback_graph(self, define_graph):
+        """Test callback graph"""
+        graph = await define_graph
+        cb = graph.get_callback()
+        asyncio.create_task(graph.execute(
+            input={"input": "Hello"}
+        ))
+        out_tokens = []
+        async for token in cb.aiter():
+            out_tokens.append(token)
+        assert out_tokens == [
+            "<graphai:node_a:start:>",
+            "<graphai:node_a:>",
+            "Hello",
+            "World",
+            "!",
+            "<graphai:node_a:end:>",
+            "<graphai:node_b:start:>",
+            "<graphai:node_b:>",
+            "Here",
+            "is",
+            "node",
+            "B",
+            "!",
+            "<graphai:node_b:end:>",
+            "<graphai:node_d:start:>",
+            "<graphai:node_d:>",
+            "Here",
+            "is",
+            "node",
+            "D",
+            "!",
+            "<graphai:node_d:end:>",
+            "<graphai:END:>"
+        ]
 
 # @pytest.mark.asyncio
 # async def test_start_node(callback):
