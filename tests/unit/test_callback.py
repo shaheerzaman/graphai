@@ -163,6 +163,46 @@ class TestCallbackGraph:
             "<graphai:END:>"
         ]
 
+    @pytest.mark.asyncio
+    async def test_custom_callback_graph(self, define_graph):
+        """Test callback graph"""
+        graph = await define_graph
+        cb = graph.get_callback()
+        cb.identifier = "custom"
+        cb.special_token_format = "[{identifier}:{token}:{params}]"
+        cb.token_format = "<<{token}>>"
+        asyncio.create_task(graph.execute(
+            input={"input": "Hello"}
+        ))
+        out_tokens = []
+        async for token in cb.aiter():
+            out_tokens.append(token)
+        assert out_tokens == [
+            "[custom:node_a:start:]",
+            "[custom:node_a:]",
+            "Hello",
+            "World",
+            "!",
+            "[custom:node_a:end:]",
+            "[custom:node_b:start:]",
+            "[custom:node_b:]",
+            "Here",
+            "is",
+            "node",
+            "B",
+            "!",
+            "[custom:node_b:end:]",
+            "[custom:node_d:start:]",
+            "[custom:node_d:]",
+            "Here",
+            "is",
+            "node",
+            "D",
+            "!",
+            "[custom:node_d:end:]",
+            "[custom:END:]"
+        ]
+
 # @pytest.mark.asyncio
 # async def test_start_node(callback):
 #     """Test starting a node"""
