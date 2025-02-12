@@ -36,23 +36,28 @@ class Graph:
             source: The source node or its name.
             destination: The destination node or its name.
         """
+        source_node, destination_node = None, None
         # get source node from graph
         if isinstance(source, str):
-            source_node: _Node | None = self.nodes.get(source)
-        elif isinstance(source, _Node):
-            source_node = self.nodes.get(source.name)
+            source_node = self.nodes.get(source)
+        else:
+            # Check if it's a node-like object by looking for required attributes
+            if hasattr(source, 'name'):
+                source_node = self.nodes.get(source.name)
         if source_node is None:
             raise ValueError(
-                f"Node with name '{source.name if isinstance(source, _Node) else source}' not found."
+                f"Node with name '{source.name if hasattr(source, 'name') else source}' not found."
             )
         # get destination node from graph
         if isinstance(destination, str):
-            destination_node: _Node | None = self.nodes.get(destination)
-        elif isinstance(destination, _Node):
-            destination_node = self.nodes.get(destination.name)
+            destination_node = self.nodes.get(destination)
+        else:
+            # Check if it's a node-like object by looking for required attributes
+            if hasattr(destination, 'name'):
+                destination_node = self.nodes.get(destination.name)
         if destination_node is None:
             raise ValueError(
-                f"Node with name '{destination.name if isinstance(destination, _Node) else destination}' not found."
+                f"Node with name '{destination.name if hasattr(destination, 'name') else destination}' not found."
             )
         edge = Edge(source_node, destination_node)
         self.edges.append(edge)

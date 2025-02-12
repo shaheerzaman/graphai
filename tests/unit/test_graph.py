@@ -82,6 +82,7 @@ class TestGraph:
         for i, (node_fn, name) in enumerate(nodes):
             graph.add_node(node_fn)
             if i > 0:
+                # add each edge using the name only
                 graph.add_edge(nodes[i-1][1], name)
 
         response = await graph.execute(input={"input": "ABC"})
