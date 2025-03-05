@@ -168,7 +168,7 @@ class Graph:
 
         G = nx.DiGraph()
 
-        for node in self.nodes:
+        for node in self.nodes.values():
             G.add_node(node.name)
 
         for edge in self.edges:
@@ -202,10 +202,11 @@ class Graph:
                     pos[node] = (pos[node][0] - x_center, pos[node][1])
 
             # Scale the layout
-            max_x = max(abs(p[0]) for p in pos.values())
-            max_y = max(abs(p[1]) for p in pos.values())
-            scale = min(0.8 / max_x, 0.8 / max_y)
-            pos = {node: (x * scale, y * scale) for node, (x, y) in pos.items()}
+            max_x = max(abs(p[0]) for p in pos.values()) if pos else 1
+            max_y = max(abs(p[1]) for p in pos.values()) if pos else 1
+            if max_x > 0 and max_y > 0:
+                scale = min(0.8 / max_x, 0.8 / max_y)
+                pos = {node: (x * scale, y * scale) for node, (x, y) in pos.items()}
 
         else:
             print("Warning: The graph contains cycles. Visualization will use a spring layout.")
