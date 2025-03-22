@@ -1,0 +1,10 @@
+modules:
+  graphai:
+    tags: [ code, docs ]
+    pattern: graphai/**
+  tests:
+    tags: [ code ]
+    pattern: tests/**
+  docs:
+    tags: [ docs ]
+    pattern: docs/**
