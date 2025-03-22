@@ -1,5 +1,3 @@
-# Callbacks
-
 The Callback system in GraphAI provides a powerful mechanism for streaming data between nodes, particularly useful for handling streaming LLM outputs or other incremental data processing.
 
 ## Callback Basics

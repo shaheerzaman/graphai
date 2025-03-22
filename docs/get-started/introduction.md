@@ -1,5 +1,3 @@
-# Introduction to GraphAI
-
 GraphAI is a minimalistic "AI framework" that aims to not be an AI framework at all. Instead, it provides a simple, flexible graph-based architecture that engineers can use to develop their own AI frameworks and projects.
 
 ## What is GraphAI?

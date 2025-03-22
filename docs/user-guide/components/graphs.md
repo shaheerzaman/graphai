@@ -1,5 +1,3 @@
-# Graphs
-
 The `Graph` is the central orchestration component in GraphAI. It connects `Nodes` and `Routers` into a coherent workflow and manages the execution flow.
 
 ## Graph Basics
