@@ -753,7 +753,7 @@ requires-dist = [
     { name = "pytest-mock", marker = "extra == 'dev'", specifier = ">=3.12.0" },
     { name = "pytest-xdist", marker = "extra == 'dev'", specifier = ">=3.5.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.1.5" },
-    { name = "semantic-router", specifier = ">=0.1.4" },
+    { name = "semantic-router", specifier = ">=0.1.5" },
 ]
 
 [[package]]
@@ -2100,7 +2100,7 @@ wheels = [
 
 [[package]]
 name = "semantic-router"
-version = "0.1.4"
+version = "0.1.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
@@ -2118,9 +2118,9 @@ dependencies = [
     { name = "tornado" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/d4/09/853d94cadd351c1cd51030fd9200cbf85a63bc974430196929cbf2f28269/semantic_router-0.1.4.tar.gz", hash = "sha256:804f2f01efc8d1e531d7bc9822093f3605550ea07bf0e4a55b9153c3ed6bfd69", size = 81074 }
+sdist = { url = "https://files.pythonhosted.org/packages/65/8d/873756925ff20a99d454df34cf905bc2e4afb0803007ae40ff452f5715a9/semantic_router-0.1.5.tar.gz", hash = "sha256:d213378b0094a328ca85f4c2843332d2f8c892a32be1da10daf216a7f62aed0b", size = 81189 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d7/27/da996278b8fde106a4c5d50ade8cf49eff3f071ff372966fd46f29190b14/semantic_router-0.1.4-py3-none-any.whl", hash = "sha256:2784fe671d04b0cad93e96ab28b5442d0f097749c670be96a8fc798ded062519", size = 110935 },
+    { url = "https://files.pythonhosted.org/packages/60/57/c7f1ad4aab1d6386dcc32781d610b98a6824ad0d67e13ec14a020b4dfff6/semantic_router-0.1.5-py3-none-any.whl", hash = "sha256:72edae874c39d9a3952cd47d326a2632206721749c4b0bcc8168b926a158e717", size = 111085 },
 ]
 
 [[package]]
