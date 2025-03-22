@@ -27,7 +27,7 @@ jobs:
         cache-dependency-glob: "uv.lock"
         python-version: ${{ matrix.python-version }}
     - name: Install Dependencies
-      run: uv sync --extra all
+      run: uv sync --extra dev
     - name: Pytest All
       run: |
         uv run pytest -vv -n 20 tests
