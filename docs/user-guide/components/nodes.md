@@ -1,5 +1,3 @@
-# Nodes and Routers
-
 Nodes are the fundamental processing units in GraphAI. They encapsulate discrete pieces of functionality and can be connected to form complex workflows.
 
 ## Node Basics

@@ -1,5 +1,3 @@
-# Quickstart Guide
-
 This guide will help you build a simple LLM-powered agent using GraphAI and the OpenAI API. By the end, you'll have a functional agent that can:
 
 1. Determine whether to search for information or use memory
@@ -196,9 +194,3 @@ asyncio.run(run_agent())
 5. The `node_end` node returns the final output.
 
 This simple example demonstrates GraphAI's flexibility. By changing the node implementations, you can easily modify the agent's behavior without changing its overall structure.
-
-## Next Steps
-
-- Explore the [User Guide](../user-guide/components/graphs.md) for more detailed information about GraphAI's components
-- Check out the [Graphs](../user-guide/components/graphs.md) documentation to learn more about connecting nodes
-- Learn about [Callbacks](../user-guide/components/callbacks.md) to implement streaming responses 

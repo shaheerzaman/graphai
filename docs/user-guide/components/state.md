@@ -1,5 +1,3 @@
-# State Management
-
 GraphAI provides a state management system that allows data to persist across node executions. This state is essential for maintaining context throughout the execution of a graph.
 
 ## State Basics
