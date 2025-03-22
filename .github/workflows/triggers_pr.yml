@@ -29,6 +29,4 @@ jobs:
     if: ${{ fromJson(needs.diff.outputs.tags).code.changed }}
     uses: ./.github/workflows/test.yml
     secrets:
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
