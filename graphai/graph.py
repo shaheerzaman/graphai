@@ -1,18 +1,36 @@
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from graphai.nodes.base import _Node
 from graphai.callback import Callback
 from semantic_router.utils.logger import logger
 
 
 class Graph:
-    def __init__(self, max_steps: int = 10):
-        self.nodes = {}
-        self.edges = []
-        self.start_node = None
-        self.end_nodes = []
+    def __init__(self, max_steps: int = 10, initial_state: Optional[Dict[str, Any]] = None):
+        self.nodes: Dict[str, _Node] = {}
+        self.edges: List[Any] = []
+        self.start_node: Optional[_Node] = None
+        self.end_nodes: List[_Node] = []
         self.Callback = Callback
         self.callback = None
         self.max_steps = max_steps
+        self.state = initial_state or {}
+
+    # Allow getting and setting the graph's internal state
+    def get_state(self) -> Dict[str, Any]:
+        """Get the current graph state."""
+        return self.state
+
+    def set_state(self, state: Dict[str, Any]):
+        """Set the graph state."""
+        self.state = state
+
+    def update_state(self, values: Dict[str, Any]):
+        """Update the graph state with new values."""
+        self.state.update(values)
+
+    def reset_state(self):
+        """Reset the graph state to an empty dict."""
+        self.state = {}
 
     def add_node(self, node):
         if node.name in self.nodes:
@@ -100,17 +118,20 @@ class Graph:
             self.callback = self.get_callback()
         current_node = self.start_node
         state = input
+        # Don't reset the graph state if it was initialized with initial_state
         steps = 0
         while True:
             # we invoke the node here
             if current_node.stream:
                 # add callback tokens and param here if we are streaming
                 await self.callback.start_node(node_name=current_node.name)
-                output = await current_node.invoke(input=state, callback=self.callback)
+                # Include graph's internal state in the node execution context
+                output = await current_node.invoke(input=state, callback=self.callback, state=self.state)
                 self._validate_output(output=output, node_name=current_node.name)
                 await self.callback.end_node(node_name=current_node.name)
             else:
-                output = await current_node.invoke(input=state)
+                # Include graph's internal state in the node execution context
+                output = await current_node.invoke(input=state, state=self.state)
                 self._validate_output(output=output, node_name=current_node.name)
             # add output to state
             state = {**state, **output}
@@ -142,10 +163,21 @@ class Graph:
         return self.callback
 
     def _get_node_by_name(self, node_name: str) -> _Node:
-        for node in self.nodes:
-            if node.name == node_name:
-                return node
-        raise Exception(f"Node with name {node_name} not found.")
+        """Get a node by its name.
+        
+        Args:
+            node_name: The name of the node to find.
+            
+        Returns:
+            The node with the given name.
+            
+        Raises:
+            Exception: If no node with the given name is found.
+        """
+        node = self.nodes.get(node_name)
+        if node is None:
+            raise Exception(f"Node with name {node_name} not found.")
+        return node
 
     def _get_next_node(self, current_node):
         for edge in self.edges:

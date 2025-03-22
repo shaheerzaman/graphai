@@ -105,7 +105,7 @@ class _Node:
                 return "\n".join(signature_components)
 
             @classmethod
-            async def invoke(cls, input: Dict[str, Any], callback: Optional[Callback] = None):
+            async def invoke(cls, input: Dict[str, Any], callback: Optional[Callback] = None, state: Optional[Dict[str, Any]] = None):
                 if callback:
                     if stream:
                         input["callback"] = callback
@@ -113,6 +113,10 @@ class _Node:
                         raise ValueError(
                             f"Error in node {func.__name__}. When callback provided, stream must be True."
                         )
+                # Add state to the input if present and the parameter exists in the function signature
+                if state is not None and "state" in cls._func_signature.parameters:
+                    input["state"] = state
+                
                 instance = cls()
                 out = await instance.execute(**input)
                 return out
