@@ -5,61 +5,39 @@ on:
     tags:
     - '*'
 
-env:
-  UV_VERSION: "0.1.19"
-
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.13'
-    - name: Cache uv
-      uses: actions/cache@v4
-      with:
-        path: ~/.cache/uv
-        key: ${{ runner.os }}-uv-${{ hashFiles('**/pyproject.toml') }}
-        restore-keys: |
-          ${{ runner.os }}-uv-
     - name: Install uv
-      run: |
-        pip install uv==$UV_VERSION
+      uses: astral-sh/setup-uv@v5
+      with:
+        enable-cache: true
+        cache-dependency-glob: "uv.lock"
+        python-version: "3.10"
     - name: Install dependencies
-      run: |
-        uv pip install -e ".[dev]"
+      run: uv sync --extra dev
     - name: Build
-      run: |
-        uv pip install build
-        uv run python -m build
+      run: uv build
 
   publish:
     needs: build
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.13'
-    - name: Cache uv
-      uses: actions/cache@v4
-      with:
-        path: ~/.cache/uv
-        key: ${{ runner.os }}-uv-${{ hashFiles('**/pyproject.toml') }}
-        restore-keys: |
-          ${{ runner.os }}-uv-
     - name: Install uv
+      uses: astral-sh/setup-uv@v5
+      with:
+        enable-cache: true
+        cache-dependency-glob: "uv.lock"
+        python-version: "3.10"
+    - name: Install dependencies
+      run: uv sync --extra dev
+    - name: Build
+      run: uv build
+    - name: Publish to PyPI
       run: |
-        pip install uv==$UV_VERSION
-    - name: Install publishing tools
-      run: |
-        uv pip install build twine
-    - name: Build and publish to PyPI
-      run: |
-        uv run python -m build
-        uv run twine upload dist/* --username "__token__" --password "$PYPI_API_TOKEN"
+        uv publish --username "__token__" --password "$PYPI_API_TOKEN"
       env:
         PYPI_API_TOKEN: ${{ secrets.PYPI_API_TOKEN }}

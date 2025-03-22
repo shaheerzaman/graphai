@@ -9,6 +9,8 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
     strategy:
       matrix:
         python-version:
@@ -18,30 +20,19 @@ jobs:
         - "3.13"
     steps:
     - uses: actions/checkout@v4
-    - name: Cache uv
-      uses: actions/cache@v4
-      with:
-        path: ~/.cache/uv
-        key: ${{ runner.os }}-uv-${{ hashFiles('**/pyproject.toml') }}
-        restore-keys: |
-          ${{ runner.os }}-uv-
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ matrix.python-version }}
     - name: Install uv
-      run: |
-        pip install uv==$UV_VERSION
-    - name: Install dependencies
-      run: |
-        uv pip install -e ".[dev]"
+      uses: astral-sh/setup-uv@v5
+      with:
+        enable-cache: true
+        cache-dependency-glob: "uv.lock"
+        python-version: ${{ matrix.python-version }}
+    - name: Install Dependencies
+      run: uv sync --extra all
     - name: Pytest All
       run: |
         uv run pytest -vv -n 20 tests
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v2
-      env:
-        CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       with:
         file: ./coverage.xml
         fail_ci_if_error: false
