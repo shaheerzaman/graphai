@@ -126,12 +126,12 @@ class Graph:
                 # add callback tokens and param here if we are streaming
                 await self.callback.start_node(node_name=current_node.name)
                 # Include graph's internal state in the node execution context
-                output = await current_node.invoke(input=state, callback=self.callback, graph_state=self.state)
+                output = await current_node.invoke(input=state, callback=self.callback, state=self.state)
                 self._validate_output(output=output, node_name=current_node.name)
                 await self.callback.end_node(node_name=current_node.name)
             else:
                 # Include graph's internal state in the node execution context
-                output = await current_node.invoke(input=state, graph_state=self.state)
+                output = await current_node.invoke(input=state, state=self.state)
                 self._validate_output(output=output, node_name=current_node.name)
             # add output to state
             state = {**state, **output}

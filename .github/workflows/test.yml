@@ -3,9 +3,8 @@ name: Test
 on:
   pull_request:
 
-
 env:
-  POETRY_VERSION: "1.8.4"
+  UV_VERSION: "0.1.19"
 
 jobs:
   build:
@@ -19,27 +18,26 @@ jobs:
         - "3.13"
     steps:
     - uses: actions/checkout@v4
-    - name: Cache Poetry
+    - name: Cache uv
       uses: actions/cache@v4
       with:
-        path: ~/.poetry
-        key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
+        path: ~/.cache/uv
+        key: ${{ runner.os }}-uv-${{ hashFiles('**/pyproject.toml') }}
         restore-keys: |
-          ${{ runner.os }}-poetry-
-    - name: Install poetry
-      run: |
-        pipx install poetry==$POETRY_VERSION
+          ${{ runner.os }}-uv-
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
-        cache: poetry
+    - name: Install uv
+      run: |
+        pip install uv==$UV_VERSION
     - name: Install dependencies
       run: |
-        poetry install --all-extras
+        uv pip install -e ".[dev]"
     - name: Pytest All
       run: |
-        poetry run pytest -vv -n 20 tests
+        uv run pytest -vv -n 20 tests
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v2
       env:
