@@ -2,7 +2,6 @@ import asyncio
 from pydantic import Field
 from typing import Optional
 from collections.abc import AsyncIterator
-from semantic_router.utils.logger import logger
 
 
 log_stream = True

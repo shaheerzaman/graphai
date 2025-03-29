@@ -1,7 +1,7 @@
 from typing import List, Dict, Any, Optional
 from graphai.nodes.base import _Node
 from graphai.callback import Callback
-from semantic_router.utils.logger import logger
+from graphai.utils import logger
 
 
 class Graph:
