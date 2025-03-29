@@ -58,12 +58,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/7b/14/4da7b12a9abc43a601c215cb5a3d176734578da109f0dbf0a832ed78be09/black-23.12.1-py3-none-any.whl", hash = "sha256:78baad24af0f033958cad29731e27363183e140962595def56423e626f4bee3e", size = 194363 },
 ]
 
-[package.optional-dependencies]
-jupyter = [
-    { name = "ipython" },
-    { name = "tokenize-rt" },
-]
-
 [[package]]
 name = "certifi"
 version = "2025.1.31"
@@ -210,6 +204,18 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/d8/53/6f443c9a4a8358a93a6792e2acffb9d9d5cb0a5cfd8802644b7b1c9a02e4/colorama-0.4.6.tar.gz", hash = "sha256:08695f5cb7ed6e0531a20572697297273c47b8cae5a63ffc6d6ed5c201be6e44", size = 27697 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d1/d6/3965ed04c63042e047cb6a3e6ed1a63a35087b6a609aa3a15ed8ac56c221/colorama-0.4.6-py2.py3-none-any.whl", hash = "sha256:4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6", size = 25335 },
+]
+
+[[package]]
+name = "colorlog"
+version = "6.9.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "colorama", marker = "sys_platform == 'win32'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/d3/7a/359f4d5df2353f26172b3cc39ea32daa39af8de522205f512f458923e677/colorlog-6.9.0.tar.gz", hash = "sha256:bfba54a1b93b94f54e1f4fe48395725a3d92fd2a4af702f6bd70946bdc0c6ac2", size = 16624 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e3/51/9b208e85196941db2f0654ad0357ca6388ab3ed67efdbfc799f35d1f83aa/colorlog-6.9.0-py3-none-any.whl", hash = "sha256:5906e71acd67cb07a71e779c47c4bcb45fb8c2993eebe9e5adcd6a6f1b283eff", size = 11424 },
 ]
 
 [[package]]
@@ -555,6 +561,7 @@ name = "graphai-lib"
 version = "0.0.5"
 source = { editable = "." }
 dependencies = [
+    { name = "colorlog" },
     { name = "matplotlib" },
     { name = "networkx" },
     { name = "pydantic" },
@@ -562,7 +569,6 @@ dependencies = [
 
 [package.optional-dependencies]
 dev = [
-    { name = "black", extra = ["jupyter"] },
     { name = "ipykernel" },
     { name = "mypy" },
     { name = "pytest" },
@@ -571,6 +577,7 @@ dev = [
     { name = "pytest-mock" },
     { name = "pytest-xdist" },
     { name = "ruff" },
+    { name = "types-networkx" },
 ]
 docs = [
     { name = "pydoc-markdown", marker = "python_full_version < '3.12'" },
@@ -578,7 +585,7 @@ docs = [
 
 [package.metadata]
 requires-dist = [
-    { name = "black", extras = ["jupyter"], marker = "extra == 'dev'", specifier = ">=23.12.1,<24.5.0" },
+    { name = "colorlog", specifier = ">=6.9.0" },
     { name = "ipykernel", marker = "extra == 'dev'", specifier = ">=6.25.0" },
     { name = "matplotlib", specifier = ">=3.10.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.7.1" },
@@ -591,6 +598,7 @@ requires-dist = [
     { name = "pytest-mock", marker = "extra == 'dev'", specifier = ">=3.12.0" },
     { name = "pytest-xdist", marker = "extra == 'dev'", specifier = ">=3.5.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.1.5" },
+    { name = "types-networkx", marker = "extra == 'dev'", specifier = ">=3.4.2.20250319" },
 ]
 
 [[package]]
@@ -1650,15 +1658,6 @@ wheels = [
 ]
 
 [[package]]
-name = "tokenize-rt"
-version = "6.1.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/6b/0a/5854d8ced8c1e00193d1353d13db82d7f813f99bd5dcb776ce3e2a4c0d19/tokenize_rt-6.1.0.tar.gz", hash = "sha256:e8ee836616c0877ab7c7b54776d2fefcc3bde714449a206762425ae114b53c86", size = 5506 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/87/ba/576aac29b10dfa49a6ce650001d1bb31f81e734660555eaf144bfe5b8995/tokenize_rt-6.1.0-py2.py3-none-any.whl", hash = "sha256:d706141cdec4aa5f358945abe36b911b8cbdc844545da99e811250c0cee9b6fc", size = 6015 },
-]
-
-[[package]]
 name = "tomli"
 version = "2.2.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1743,6 +1742,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/e6/4c/6c35c2d97e6292d715bd93953a4a6114fc091492bd58cad1fdaebbc4ee12/typeapi-2.2.4.tar.gz", hash = "sha256:daa80767520c0957a320577e4f729c0ba6921c708def31f4c6fd8d611908fd7b", size = 121923 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b6/33/38da585b06978d262cc2b2b45bc57ee75f0ce5e0b4ef1cab1b86461e9298/typeapi-2.2.4-py3-none-any.whl", hash = "sha256:bd6d5e5907fa47e0303bf254e7cc8712d4be4eb26d7ffaedb67c9e7844c53bb8", size = 26387 },
+]
+
+[[package]]
+name = "types-networkx"
+version = "3.4.2.20250319"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/41/ba/ddc3510d544cd919d751876abda8ff9da356d5064e1f9a9e9b3b92863b0c/types_networkx-3.4.2.20250319.tar.gz", hash = "sha256:514b373c21f03fef94d71ca7182026ae73773fe3d4eaaf9139e9bdd78f5361c5", size = 55227 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/23/23/13414ead12ee55491c25e75029b5bfce41990bc01071a1e2e07f1c642178/types_networkx-3.4.2.20250319-py3-none-any.whl", hash = "sha256:95266a3b4ee04779638231a8ef4c312e745f3eeab9da242614d03ad0bfbb0cc9", size = 137574 },
 ]
 
 [[package]]

@@ -1,6 +1,6 @@
 import asyncio
 from pydantic import Field
-from typing import Optional
+from typing import Optional, Any
 from collections.abc import AsyncIterator
 
 
@@ -185,7 +185,7 @@ class Callback:
                 )
 
     async def _build_special_token(
-        self, name: str, params: dict[str, any] | None = None
+        self, name: str, params: dict[str, Any] | None = None
     ):
         if params:
             params_str = ",".join([f"{k}={v}" for k, v in params.items()])

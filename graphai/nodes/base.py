@@ -1,5 +1,6 @@
 import inspect
 from typing import Any, Callable, Dict, Optional
+from pydantic import Field
 
 from graphai.callback import Callback
 from graphai.utils import FunctionSchema
@@ -42,12 +43,17 @@ class _Node:
             raise ValueError("Node must be a callable function.")
 
         func_signature = inspect.signature(func)
-        schema = FunctionSchema(func)
+        schema: FunctionSchema = FunctionSchema.from_callable(func)
 
         class NodeClass:
             _func_signature = func_signature
-            is_router = None
-            _stream = stream
+            is_router: bool = Field(default=False, description="Whether the node is a router.")
+            # following attributes will be overridden by the decorator
+            name: str | None = Field(default=None, description="The name of the node.")
+            is_start: bool = Field(default=False, description="Whether the node is the start of the graph.")
+            is_end: bool = Field(default=False, description="Whether the node is the end of the graph.")
+            schema: FunctionSchema | None = Field(default=None, description="The schema of the node.")
+            stream: bool = Field(default=False, description="Whether the node includes streaming object.")
 
             def __init__(self):
                 self._expected_params = set(self._func_signature.parameters.keys())
@@ -137,7 +143,10 @@ class _Node:
                 return out
 
         NodeClass.__name__ = func.__name__
-        NodeClass.name = name or func.__name__
+        node_class_name = name or func.__name__
+        if node_class_name is None:
+            raise ValueError("Unexpected error: node name not set.")
+        NodeClass.name = node_class_name
         NodeClass.__doc__ = func.__doc__
         NodeClass.is_start = start
         NodeClass.is_end = end

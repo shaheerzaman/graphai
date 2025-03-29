@@ -228,6 +228,6 @@ DEFAULT = set(["default", "openai", "ollama", "litellm"])
 
 def get_schemas(callables: List[Callable], format: str = "default") -> list[dict]:
     if format in DEFAULT:
-        return [FunctionSchema(callable).to_dict() for callable in callables]
+        return [FunctionSchema.from_callable(callable).to_dict() for callable in callables]
     else:
         raise ValueError(f"Format {format} not supported")
