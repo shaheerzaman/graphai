@@ -98,20 +98,6 @@ class FunctionSchema(BaseModel):
     output: str = Field(description="The output of the function")
     parameters: list[Parameter] = Field(description="The parameters of the function")
 
-    def __init__(
-        self,
-        name: str,
-        description: str,
-        signature: str,
-        output: str,
-        parameters: list[Parameter],
-    ):
-        self.name = name
-        self.description = description
-        self.signature = signature
-        self.output = output
-        self.parameters = parameters
-
     @classmethod
     def from_callable(cls, function: Callable) -> "FunctionSchema":
         """Initialize the FunctionSchema.
@@ -136,7 +122,7 @@ class FunctionSchema(BaseModel):
                         required=param.default is inspect.Parameter.empty,
                     )
                 )
-            return cls(
+            return cls.model_construct(
                 name=name,
                 description=description,
                 signature=signature,
@@ -163,32 +149,13 @@ class FunctionSchema(BaseModel):
                 signature_part = f"{field_name}: {field_model.__name__}"
             signature_parts.append(signature_part)
         signature = f"({', '.join(signature_parts)}) -> str"
-        return cls(
+        return cls.model_construct(
             name=model.__class__.__name__,
             description=model.__doc__ or "",
             signature=signature,
             output="",  # TODO: Implement output
             parameters=[],
         )
-
-    def _process_function(self, function: Callable):
-        self.name = function.__name__
-        self.description = str(inspect.getdoc(function))
-        if self.description is None or self.description == "":
-            logger.warning(f"Function {self.name} has no docstring")
-        self.signature = str(inspect.signature(function))
-        self.output = str(inspect.signature(function).return_annotation)
-        parameters = []
-        for param in inspect.signature(function).parameters.values():
-            parameters.append(
-                Parameter(
-                    name=param.name,
-                    type=param.annotation.__name__,
-                    default=param.default,
-                    required=param.default is inspect.Parameter.empty,
-                )
-            )
-        self.parameters = parameters
 
     def to_dict(self) -> dict:
         schema_dict = {
@@ -228,6 +195,8 @@ DEFAULT = set(["default", "openai", "ollama", "litellm"])
 
 def get_schemas(callables: List[Callable], format: str = "default") -> list[dict]:
     if format in DEFAULT:
-        return [FunctionSchema.from_callable(callable).to_dict() for callable in callables]
+        return [
+            FunctionSchema.from_callable(callable).to_dict() for callable in callables
+        ]
     else:
         raise ValueError(f"Format {format} not supported")

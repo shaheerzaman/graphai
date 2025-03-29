@@ -60,7 +60,7 @@ class TestGraphState:
 
         # Verify we can access the graph state directly
         assert graph.get_state()["counter"] == 4
-        assert graph.get_state()["initialized"] 
+        assert graph.get_state()["initialized"]
 
     @pytest.mark.asyncio
     async def test_initial_state(self):

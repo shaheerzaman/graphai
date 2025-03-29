@@ -47,13 +47,23 @@ class _Node:
 
         class NodeClass:
             _func_signature = func_signature
-            is_router: bool = Field(default=False, description="Whether the node is a router.")
+            is_router: bool = Field(
+                default=False, description="Whether the node is a router."
+            )
             # following attributes will be overridden by the decorator
             name: str | None = Field(default=None, description="The name of the node.")
-            is_start: bool = Field(default=False, description="Whether the node is the start of the graph.")
-            is_end: bool = Field(default=False, description="Whether the node is the end of the graph.")
-            schema: FunctionSchema | None = Field(default=None, description="The schema of the node.")
-            stream: bool = Field(default=False, description="Whether the node includes streaming object.")
+            is_start: bool = Field(
+                default=False, description="Whether the node is the start of the graph."
+            )
+            is_end: bool = Field(
+                default=False, description="Whether the node is the end of the graph."
+            )
+            schema: FunctionSchema | None = Field(
+                default=None, description="The schema of the node."
+            )
+            stream: bool = Field(
+                default=False, description="Whether the node includes streaming object."
+            )
 
             def __init__(self):
                 self._expected_params = set(self._func_signature.parameters.keys())
