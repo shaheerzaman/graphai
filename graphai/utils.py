@@ -60,7 +60,7 @@ class FunctionSchema:
             )
         self.parameters = parameters
 
-    def to_openai(self):
+    def to_dict(self) -> dict:
         schema_dict = {
             "type": "function",
             "function": {
@@ -86,6 +86,9 @@ class FunctionSchema:
             },
         }
         return schema_dict
+
+    def to_openai(self) -> dict:
+        return self.to_dict()
 
     def _openai_type_mapping(self, param_type: str) -> str:
         if param_type == "int":
@@ -123,3 +126,11 @@ def get_schema_pydantic(model: BaseModel) -> Dict[str, Any]:
         output="",  # TODO: Implement output
     )
     return schema
+
+DEFAULT = set(["default", "openai", "ollama", "litellm"])
+
+def get_schemas(callables: List[Callable], format: str = "default") -> list[dict]:
+    if format in DEFAULT:
+        return [FunctionSchema(callable).to_dict() for callable in callables]
+    else:
+        raise ValueError(f"Format {format} not supported")
