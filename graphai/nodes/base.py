@@ -9,7 +9,11 @@ class NodeMeta(type):
     @staticmethod
     def positional_to_kwargs(cls_type, args) -> Dict[str, Any]:
         init_signature = inspect.signature(cls_type.__init__)
-        init_params = {name: arg for name, arg in init_signature.parameters.items() if name != "self"}
+        init_params = {
+            name: arg
+            for name, arg in init_signature.parameters.items()
+            if name != "self"
+        }
         return init_params
 
     def __call__(cls, *args, **kwargs):
@@ -33,11 +37,10 @@ class _Node:
         stream: bool = False,
         name: str | None = None,
     ) -> Callable:
-        """Decorator validating node structure.
-        """
+        """Decorator validating node structure."""
         if not callable(func):
             raise ValueError("Node must be a callable function.")
-        
+
         func_signature = inspect.signature(func)
         schema = FunctionSchema(func)
 
@@ -56,9 +59,13 @@ class _Node:
 
             async def _parse_params(self, *args, **kwargs) -> Dict[str, Any]:
                 # filter out unexpected keyword args
-                expected_kwargs = {k: v for k, v in kwargs.items() if k in self._expected_params}
+                expected_kwargs = {
+                    k: v for k, v in kwargs.items() if k in self._expected_params
+                }
                 # Convert args to kwargs based on the function signature
-                args_names = list(self._func_signature.parameters.keys())[1:len(args)+1]  # skip 'self'
+                args_names = list(self._func_signature.parameters.keys())[
+                    1 : len(args) + 1
+                ]  # skip 'self'
                 expected_args_kwargs = dict(zip(args_names, args))
                 # Combine filtered args and kwargs
                 combined_params = {**expected_args_kwargs, **expected_kwargs}
@@ -87,7 +94,6 @@ class _Node:
                     )
                 return filtered_params
 
-
             @classmethod
             def get_signature(cls):
                 """Returns the signature of the decorated function as LLM readable
@@ -97,15 +103,24 @@ class _Node:
                 if NodeClass._func_signature:
                     for param in NodeClass._func_signature.parameters.values():
                         if param.default is param.empty:
-                            signature_components.append(f"{param.name}: {param.annotation}")
+                            signature_components.append(
+                                f"{param.name}: {param.annotation}"
+                            )
                         else:
-                            signature_components.append(f"{param.name}: {param.annotation} = {param.default}")
+                            signature_components.append(
+                                f"{param.name}: {param.annotation} = {param.default}"
+                            )
                 else:
                     return "No signature"
                 return "\n".join(signature_components)
 
             @classmethod
-            async def invoke(cls, input: Dict[str, Any], callback: Optional[Callback] = None, state: Optional[Dict[str, Any]] = None):
+            async def invoke(
+                cls,
+                input: Dict[str, Any],
+                callback: Optional[Callback] = None,
+                state: Optional[Dict[str, Any]] = None,
+            ):
                 if callback:
                     if stream:
                         input["callback"] = callback
@@ -116,7 +131,7 @@ class _Node:
                 # Add state to the input if present and the parameter exists in the function signature
                 if state is not None and "state" in cls._func_signature.parameters:
                     input["state"] = state
-                
+
                 instance = cls()
                 out = await instance.execute(**input)
                 return out
@@ -141,8 +156,11 @@ class _Node:
     ):
         # We must wrap the call to the decorator in a function for it to work
         # correctly with or without parenthesis
-        def wrap(func: Callable, start=start, end=end, stream=stream, name=name) -> Callable:
+        def wrap(
+            func: Callable, start=start, end=end, stream=stream, name=name
+        ) -> Callable:
             return self._node(func=func, start=start, end=end, stream=stream, name=name)
+
         if func:
             # Decorator is called without parenthesis
             return wrap(func=func, start=start, end=end, stream=stream, name=name)

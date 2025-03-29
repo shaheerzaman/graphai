@@ -31,8 +31,7 @@ def test_function_schema_to_dict():
         dict_schema["function"]["parameters"]["properties"]["url"]["type"] == "string"
     )
     assert (
-        dict_schema["function"]["parameters"]["properties"]["name"]["type"]
-        == "string"
+        dict_schema["function"]["parameters"]["properties"]["name"]["type"] == "string"
     )
     assert (
         dict_schema["function"]["parameters"]["properties"]["url"]["description"]

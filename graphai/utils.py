@@ -49,7 +49,6 @@ def setup_custom_logger(name):
 logger: logging.Logger = setup_custom_logger(__name__)
 
 
-
 class Parameter(BaseModel):
     """Parameter for a function.
 
@@ -85,12 +84,14 @@ class Parameter(BaseModel):
                 "description": self.description,
                 "type": self.type,
             }
-        } 
+        }
+
 
 class FunctionSchema(BaseModel):
     """Class that consumes a function and can return a schema required by
     different LLMs for function calling.
     """
+
     name: str = Field(description="The name of the function")
     description: str = Field(description="The description of the function")
     signature: str = Field(description="The signature of the function")
@@ -103,15 +104,14 @@ class FunctionSchema(BaseModel):
         description: str,
         signature: str,
         output: str,
-        parameters: list[Parameter]
+        parameters: list[Parameter],
     ):
         self.name = name
         self.description = description
         self.signature = signature
         self.output = output
         self.parameters = parameters
-        
-        
+
     @classmethod
     def from_callable(cls, function: Callable) -> "FunctionSchema":
         """Initialize the FunctionSchema.
@@ -147,7 +147,7 @@ class FunctionSchema(BaseModel):
             raise NotImplementedError("Pydantic BaseModel not implemented yet.")
         else:
             raise TypeError("Function must be a Callable or BaseModel")
-    
+
     @classmethod
     def from_pydantic(cls, model: BaseModel) -> "FunctionSchema":
         signature_parts = []
@@ -170,7 +170,7 @@ class FunctionSchema(BaseModel):
             output="",  # TODO: Implement output
             parameters=[],
         )
-        
+
     def _process_function(self, function: Callable):
         self.name = function.__name__
         self.description = str(inspect.getdoc(function))
@@ -198,9 +198,7 @@ class FunctionSchema(BaseModel):
                 "description": self.description,
                 "parameters": {
                     "type": "object",
-                    "properties": {
-                        param.to_dict() for param in self.parameters
-                    },
+                    "properties": {param.to_dict() for param in self.parameters},
                     "required": [
                         param.name for param in self.parameters if param.required
                     ],
@@ -224,7 +222,9 @@ class FunctionSchema(BaseModel):
         else:
             return "object"
 
+
 DEFAULT = set(["default", "openai", "ollama", "litellm"])
+
 
 def get_schemas(callables: List[Callable], format: str = "default") -> list[dict]:
     if format in DEFAULT:
