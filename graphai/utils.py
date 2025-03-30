@@ -49,6 +49,19 @@ def setup_custom_logger(name):
 logger: logging.Logger = setup_custom_logger(__name__)
 
 
+def openai_type_mapping(param_type: str) -> str:
+    if param_type == "int":
+        return "number"
+    elif param_type == "float":
+        return "number"
+    elif param_type == "str":
+        return "string"
+    elif param_type == "bool":
+        return "boolean"
+    else:
+        return "object"
+
+
 class Parameter(BaseModel):
     """Parameter for a function.
 
@@ -82,7 +95,7 @@ class Parameter(BaseModel):
         return {
             self.name: {
                 "description": self.description,
-                "type": self.type,
+                "type": openai_type_mapping(self.type),
             }
         }
 
@@ -178,18 +191,6 @@ class FunctionSchema(BaseModel):
 
     def to_openai(self) -> dict:
         return self.to_dict()
-
-    def _openai_type_mapping(self, param_type: str) -> str:
-        if param_type == "int":
-            return "number"
-        elif param_type == "float":
-            return "number"
-        elif param_type == "str":
-            return "string"
-        elif param_type == "bool":
-            return "boolean"
-        else:
-            return "object"
 
 
 DEFAULT = set(["default", "openai", "ollama", "litellm"])
