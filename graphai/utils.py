@@ -165,7 +165,9 @@ class FunctionSchema(BaseModel):
                 "description": self.description,
                 "parameters": {
                     "type": "object",
-                    "properties": {param.to_dict() for param in self.parameters},
+                    "properties": {
+                        k: v for param in self.parameters for k, v in param.to_dict().items()
+                    },
                     "required": [
                         param.name for param in self.parameters if param.required
                     ],
