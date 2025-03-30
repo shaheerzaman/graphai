@@ -41,4 +41,4 @@ def test_function_schema_to_dict():
         dict_schema["function"]["parameters"]["properties"]["name"]["description"]
         is None
     )
-    assert dict_schema["function"]["parameters"]["required"] == ["name"]
+    assert dict_schema["function"]["parameters"]["required"] == ["url"]
