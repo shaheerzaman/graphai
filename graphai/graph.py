@@ -1,18 +1,33 @@
-from typing import List, Dict, Any, Optional
-from graphai.nodes.base import _Node
+from typing import List, Dict, Any, Optional, Protocol, Type
 from graphai.callback import Callback
 from graphai.utils import logger
+
+
+class NodeProtocol(Protocol):
+    """Protocol defining the interface of a decorated node."""
+    name: str
+    is_start: bool
+    is_end: bool
+    is_router: bool
+    stream: bool
+    
+    async def invoke(
+        self, 
+        input: Dict[str, Any], 
+        callback: Optional[Callback] = None, 
+        state: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]: ...
 
 
 class Graph:
     def __init__(
         self, max_steps: int = 10, initial_state: Optional[Dict[str, Any]] = None
     ):
-        self.nodes: Dict[str, _Node] = {}
+        self.nodes: Dict[str, NodeProtocol] = {}
         self.edges: List[Any] = []
-        self.start_node: Optional[_Node] = None
-        self.end_nodes: List[_Node] = []
-        self.Callback = Callback
+        self.start_node: Optional[NodeProtocol] = None
+        self.end_nodes: List[NodeProtocol] = []
+        self.Callback: Type[Callback] = Callback
         self.max_steps = max_steps
         self.state = initial_state or {}
 
@@ -33,7 +48,7 @@ class Graph:
         """Reset the graph state to an empty dict."""
         self.state = {}
 
-    def add_node(self, node):
+    def add_node(self, node: NodeProtocol):
         if node.name in self.nodes:
             raise Exception(f"Node with name '{node.name}' already exists.")
         self.nodes[node.name] = node
@@ -48,7 +63,7 @@ class Graph:
         if node.is_end:
             self.end_nodes.append(node)
 
-    def add_edge(self, source: _Node | str, destination: _Node | str):
+    def add_edge(self, source: NodeProtocol | str, destination: NodeProtocol | str):
         """Adds an edge between two nodes that already exist in the graph.
 
         Args:
@@ -82,7 +97,7 @@ class Graph:
         self.edges.append(edge)
 
     def add_router(
-        self, sources: list[_Node], router: _Node, destinations: List[_Node]
+        self, sources: list[NodeProtocol], router: NodeProtocol, destinations: List[NodeProtocol]
     ):
         if not router.is_router:
             raise TypeError("A router object must be passed to the router parameter.")
@@ -90,10 +105,10 @@ class Graph:
         for destination in destinations:
             self.add_edge(router, destination)
 
-    def set_start_node(self, node: _Node):
+    def set_start_node(self, node: NodeProtocol):
         self.start_node = node
 
-    def set_end_node(self, node: _Node):
+    def set_end_node(self, node: NodeProtocol):
         self.end_node = node
 
     def compile(self):
@@ -115,11 +130,15 @@ class Graph:
                 f"Instead, got {type(output)} from '{output}'."
             )
 
-    async def execute(self, input, callback: Callback = None):
+    async def execute(self, input, callback: Callback | None = None):
         # TODO JB: may need to add init callback here to init the queue on every new execution
         if callback is None:
             callback = self.get_callback()
+        
+        # Type assertion to tell the type checker that start_node is not None after compile()
+        assert self.start_node is not None, "Graph must be compiled before execution"
         current_node = self.start_node
+        
         state = input
         # Don't reset the graph state if it was initialized with initial_state
         steps = 0
@@ -172,16 +191,16 @@ class Graph:
         callback = self.Callback()
         return callback
 
-    def set_callback(self, callback_class: type[Callback]):
+    def set_callback(self, callback_class: Type[Callback]):
         """Set the callback class that is returned by the `get_callback` method and used
         as the default callback when no callback is passed to the `execute` method.
 
         :param callback_class: The callback class to use as the default callback.
-        :type callback_class: type[Callback]
+        :type callback_class: Type[Callback]
         """
         self.Callback = callback_class
 
-    def _get_node_by_name(self, node_name: str) -> _Node:
+    def _get_node_by_name(self, node_name: str) -> NodeProtocol:
         """Get a node by its name.
 
         Args:
