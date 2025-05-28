@@ -1,6 +1,6 @@
 See below for all notable changes to the GraphAI library.
 
-## [0.0.6] - 2025-01-27
+## [0.0.6] - 2025-05-28
 
 ### Added
 - Explicit callback parameter in `execute()` method for better control over callback instances
@@ -42,7 +42,7 @@ cb = graph.get_callback()
 result = await graph.execute(input=data, callback=cb)
 ```
 
-## [0.0.5] - 2024-03-30
+## [0.0.5] - 2025-03-30
 
 ### Added
 - New function schema functionality for generating standardized function schemas compatible with various LLM providers
