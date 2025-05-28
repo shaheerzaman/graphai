@@ -13,7 +13,6 @@ class Graph:
         self.start_node: Optional[_Node] = None
         self.end_nodes: List[_Node] = []
         self.Callback = Callback
-        self.callback = None
         self.max_steps = max_steps
         self.state = initial_state or {}
 
@@ -116,10 +115,10 @@ class Graph:
                 f"Instead, got {type(output)} from '{output}'."
             )
 
-    async def execute(self, input):
+    async def execute(self, input, callback: Callback = None):
         # TODO JB: may need to add init callback here to init the queue on every new execution
-        if self.callback is None:
-            self.callback = self.get_callback()
+        if callback is None:
+            callback = self.get_callback()
         current_node = self.start_node
         state = input
         # Don't reset the graph state if it was initialized with initial_state
@@ -128,13 +127,13 @@ class Graph:
             # we invoke the node here
             if current_node.stream:
                 # add callback tokens and param here if we are streaming
-                await self.callback.start_node(node_name=current_node.name)
+                await callback.start_node(node_name=current_node.name)
                 # Include graph's internal state in the node execution context
                 output = await current_node.invoke(
-                    input=state, callback=self.callback, state=self.state
+                    input=state, callback=callback, state=self.state
                 )
                 self._validate_output(output=output, node_name=current_node.name)
-                await self.callback.end_node(node_name=current_node.name)
+                await callback.end_node(node_name=current_node.name)
             else:
                 # Include graph's internal state in the node execution context
                 output = await current_node.invoke(input=state, state=self.state)
@@ -159,14 +158,28 @@ class Graph:
                     "by setting `max_steps` when initializing the Graph object."
                 )
         # TODO JB: may need to add end callback here to close the queue for every execution
-        if self.callback and "callback" in state:
-            await self.callback.close()
+        if callback and "callback" in state:
+            await callback.close()
             del state["callback"]
         return state
 
     def get_callback(self):
-        self.callback = self.Callback()
-        return self.callback
+        """Get a new instance of the callback class.
+
+        :return: A new instance of the callback class.
+        :rtype: Callback
+        """
+        callback = self.Callback()
+        return callback
+
+    def set_callback(self, callback_class: type[Callback]):
+        """Set the callback class that is returned by the `get_callback` method and used
+        as the default callback when no callback is passed to the `execute` method.
+
+        :param callback_class: The callback class to use as the default callback.
+        :type callback_class: type[Callback]
+        """
+        self.Callback = callback_class
 
     def _get_node_by_name(self, node_name: str) -> _Node:
         """Get a node by its name.

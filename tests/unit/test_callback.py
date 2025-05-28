@@ -136,7 +136,7 @@ class TestCallbackGraph:
         """Test callback graph"""
         graph = await define_graph
         cb = graph.get_callback()
-        asyncio.create_task(graph.execute(input={"input": "Hello"}))
+        asyncio.create_task(graph.execute(input={"input": "Hello"}, callback=cb))
         out_tokens = []
         async for token in cb.aiter():
             out_tokens.append(token)
@@ -174,7 +174,7 @@ class TestCallbackGraph:
         cb.identifier = "custom"
         cb.special_token_format = "[{identifier}:{token}:{params}]"
         cb.token_format = "<<{token}>>"
-        asyncio.create_task(graph.execute(input={"input": "Hello"}))
+        asyncio.create_task(graph.execute(input={"input": "Hello"}, callback=cb))
         out_tokens = []
         async for token in cb.aiter():
             out_tokens.append(token)
