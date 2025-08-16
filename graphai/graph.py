@@ -68,7 +68,9 @@ class Graph:
             self.end_nodes.append(node)
         return self
 
-    def add_edge(self, source: NodeProtocol | str, destination: NodeProtocol | str) -> "Graph":
+    def add_edge(
+        self, source: NodeProtocol | str, destination: NodeProtocol | str
+    ) -> "Graph":
         """Adds an edge between two nodes that already exist in the graph.
 
         Args:
@@ -89,9 +91,7 @@ class Graph:
             else:
                 source_name = str(source)
         if source_node is None:
-            raise ValueError(
-                f"Node with name '{source_name}' not found."
-            )
+            raise ValueError(f"Node with name '{source_name}' not found.")
         # get destination node from graph
         destination_name: str
         if isinstance(destination, str):
@@ -105,9 +105,7 @@ class Graph:
             else:
                 destination_name = str(destination)
         if destination_node is None:
-            raise ValueError(
-                f"Node with name '{destination_name}' not found."
-            )
+            raise ValueError(f"Node with name '{destination_name}' not found.")
         edge = Edge(source_node, destination_node)
         self.edges.append(edge)
         return self
@@ -249,19 +247,23 @@ class Graph:
             f"No outgoing edge found for current node '{current_node.name}'."
         )
 
-    def visualize(self):
+    def visualize(self, *, save_path: str | None = None):
+        """Render the current graph. If matplotlib is not installed,
+        raise a helpful error telling users to install the viz extra.
+        Optionally save to a file via `save_path`.
+        """
         try:
-            import networkx as nx
+            import matplotlib.pyplot as plt  # type: ignore
+        except Exception as e:
+            raise ImportError(
+                "Graph visualization requires matplotlib. Install it with: `pip install matplotlib`"
+            ) from e
+
+        try:
+            import networkx as nx  # type: ignore
         except ImportError:
             raise ImportError(
                 "NetworkX is required for visualization. Please install it with 'pip install networkx'."
-            )
-
-        try:
-            import matplotlib.pyplot as plt
-        except ImportError:
-            raise ImportError(
-                "Matplotlib is required for visualization. Please install it with 'pip install matplotlib'."
             )
 
         G: Any = nx.DiGraph()
@@ -328,8 +330,12 @@ class Graph:
             arrowsize=20,
         )
 
-        plt.axis("off")
-        plt.show()
+        if save_path:
+            plt.savefig(save_path, bbox_inches="tight")
+        else:
+            plt.axis("off")
+            plt.show()
+        plt.close()
 
 
 class Edge:
