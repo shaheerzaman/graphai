@@ -1,4 +1,5 @@
 import inspect
+import os
 from typing import Any, Callable
 from pydantic import BaseModel, Field
 import logging
@@ -49,7 +50,17 @@ def setup_custom_logger(name):
 
     if not logger.hasHandlers():
         add_coloured_handler(logger)
-        logger.setLevel(logging.INFO)
+        
+        # Set log level from environment variable, default to INFO
+        log_level = os.getenv("GRAPHAI_LOG_LEVEL", "INFO").upper()
+        level_map = {
+            "DEBUG": logging.DEBUG,
+            "INFO": logging.INFO,
+            "WARNING": logging.WARNING,
+            "ERROR": logging.ERROR,
+            "CRITICAL": logging.CRITICAL,
+        }
+        logger.setLevel(level_map.get(log_level, logging.INFO))
         logger.propagate = False
 
     return logger
