@@ -1,5 +1,3 @@
-# Configuration
-
 GraphAI can be configured using environment variables to customize behavior and output.
 
 ## Environment Variables
