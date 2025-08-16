@@ -254,17 +254,17 @@ class Graph:
         """
         try:
             import matplotlib.pyplot as plt  # type: ignore
-        except Exception as e:
+        except ImportError as e:
             raise ImportError(
                 "Graph visualization requires matplotlib. Install it with: `pip install matplotlib`"
             ) from e
 
         try:
             import networkx as nx  # type: ignore
-        except ImportError:
+        except ImportError as e:
             raise ImportError(
-                "NetworkX is required for visualization. Please install it with 'pip install networkx'."
-            )
+                "NetworkX is required for visualization. Please install it with `pip install networkx`."
+            ) from e
 
         G: Any = nx.DiGraph()
 
