@@ -1,6 +1,6 @@
 import asyncio
 from pydantic import Field
-from typing import Optional, Any
+from typing import Any
 from collections.abc import AsyncIterator
 
 
@@ -48,7 +48,7 @@ class Callback:
         description="Whether this is the first token in the stream.",
         exclude=True,
     )
-    _current_node_name: Optional[str] = Field(
+    _current_node_name: str | None = Field(
         default=None, description="The name of the current node.", exclude=True
     )
     _active: bool = Field(
@@ -85,11 +85,11 @@ class Callback:
         self._first_token = value
 
     @property
-    def current_node_name(self) -> Optional[str]:
+    def current_node_name(self) -> str | None:
         return self._current_node_name
 
     @current_node_name.setter
-    def current_node_name(self, value: Optional[str]):
+    def current_node_name(self, value: str | None):
         self._current_node_name = value
 
     @property
@@ -100,14 +100,14 @@ class Callback:
     def active(self, value: bool):
         self._active = value
 
-    def __call__(self, token: str, node_name: Optional[str] = None):
+    def __call__(self, token: str, node_name: str | None = None):
         if self._done:
             raise RuntimeError("Cannot add tokens to a closed stream")
         self._check_node_name(node_name=node_name)
         # otherwise we just assume node is correct and send token
         self.queue.put_nowait(token)
 
-    async def acall(self, token: str, node_name: Optional[str] = None):
+    async def acall(self, token: str, node_name: str | None = None):
         # TODO JB: do we need to have `node_name` param?
         if self._done:
             raise RuntimeError("Cannot add tokens to a closed stream")
@@ -176,7 +176,7 @@ class Callback:
         # Don't wait for queue.join() as it can cause deadlock
         # The stream will close when aiter processes the END token
 
-    def _check_node_name(self, node_name: Optional[str] = None):
+    def _check_node_name(self, node_name: str | None = None):
         if node_name:
             # we confirm this is the current node
             if self.current_node_name != node_name:

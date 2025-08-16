@@ -1,33 +1,42 @@
 import inspect
-from typing import Any, Callable, List, Optional
+from typing import Any, Callable
 from pydantic import BaseModel, Field
 import logging
+import sys
 
-import colorlog
 
+class ColoredFormatter(logging.Formatter):
+    """Custom colored formatter for the logger using ANSI escape codes."""
 
-class CustomFormatter(colorlog.ColoredFormatter):
-    """Custom formatter for the logger."""
+    # ANSI escape codes for colors
+    COLORS = {
+        "DEBUG": "\033[36m",  # Cyan
+        "INFO": "\033[32m",  # Green
+        "WARNING": "\033[33m",  # Yellow
+        "ERROR": "\033[31m",  # Red
+        "CRITICAL": "\033[1;31m",  # Bold Red
+    }
+    RESET = "\033[0m"
 
     def __init__(self):
         super().__init__(
-            "%(log_color)s%(asctime)s %(levelname)s %(name)s %(message)s",
+            "%(asctime)s %(levelname)s %(name)s %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S",
-            log_colors={
-                "DEBUG": "cyan",
-                "INFO": "green",
-                "WARNING": "yellow",
-                "ERROR": "red",
-                "CRITICAL": "bold_red",
-            },
-            reset=True,
-            style="%",
         )
+
+    def format(self, record):
+        # Check if the output supports color (TTY)
+        if hasattr(sys.stderr, "isatty") and sys.stderr.isatty():
+            levelname = record.levelname
+            if levelname in self.COLORS:
+                record.levelname = f"{self.COLORS[levelname]}{levelname}{self.RESET}"
+                record.msg = f"{self.COLORS[levelname]}{record.msg}{self.RESET}"
+        return super().format(record)
 
 
 def add_coloured_handler(logger):
     """Add a coloured handler to the logger."""
-    formatter = CustomFormatter()
+    formatter = ColoredFormatter()
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)
@@ -68,7 +77,7 @@ class Parameter(BaseModel):
     :param name: The name of the parameter.
     :type name: str
     :param description: The description of the parameter.
-    :type description: Optional[str]
+    :type description: str | None
     :param type: The type of the parameter.
     :type type: str
     :param default: The default value of the parameter.
@@ -78,7 +87,7 @@ class Parameter(BaseModel):
     """
 
     name: str = Field(description="The name of the parameter")
-    description: Optional[str] = Field(
+    description: str | None = Field(
         default=None, description="The description of the parameter"
     )
     type: str = Field(description="The type of the parameter")
@@ -118,34 +127,33 @@ class FunctionSchema(BaseModel):
         :param function: The function to consume.
         :type function: Callable
         """
-        if callable(function):
-            name = function.__name__
-            description = str(inspect.getdoc(function))
-            if description is None or description == "":
-                logger.warning(f"Function {name} has no docstring")
-            signature = str(inspect.signature(function))
-            output = str(inspect.signature(function).return_annotation)
-            parameters = []
-            for param in inspect.signature(function).parameters.values():
-                parameters.append(
-                    Parameter(
-                        name=param.name,
-                        type=param.annotation.__name__,
-                        default=param.default,
-                        required=param.default is inspect.Parameter.empty,
-                    )
+        if not callable(function):
+            raise TypeError("Function must be a Callable")
+        
+        name = function.__name__
+        doc = inspect.getdoc(function)
+        description = str(doc) if doc else ""
+        if not description:
+            logger.warning(f"Function {name} has no docstring")
+        signature = str(inspect.signature(function))
+        output = str(inspect.signature(function).return_annotation)
+        parameters = []
+        for param in inspect.signature(function).parameters.values():
+            parameters.append(
+                Parameter(
+                    name=param.name,
+                    type=param.annotation.__name__,
+                    default=param.default,
+                    required=param.default is inspect.Parameter.empty,
                 )
-            return cls.model_construct(
-                name=name,
-                description=description,
-                signature=signature,
-                output=output,
-                parameters=parameters,
             )
-        elif isinstance(function, BaseModel):
-            raise NotImplementedError("Pydantic BaseModel not implemented yet.")
-        else:
-            raise TypeError("Function must be a Callable or BaseModel")
+        return cls.model_construct(
+            name=name,
+            description=description,
+            signature=signature,
+            output=output,
+            parameters=parameters,
+        )
 
     @classmethod
     def from_pydantic(cls, model: BaseModel) -> "FunctionSchema":
@@ -179,7 +187,9 @@ class FunctionSchema(BaseModel):
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        k: v for param in self.parameters for k, v in param.to_dict().items()
+                        k: v
+                        for param in self.parameters
+                        for k, v in param.to_dict().items()
                     },
                     "required": [
                         param.name for param in self.parameters if param.required
@@ -196,7 +206,7 @@ class FunctionSchema(BaseModel):
 DEFAULT = set(["default", "openai", "ollama", "litellm"])
 
 
-def get_schemas(callables: List[Callable], format: str = "default") -> list[dict]:
+def get_schemas(callables: list[Callable], format: str = "default") -> list[dict]:
     if format in DEFAULT:
         return [
             FunctionSchema.from_callable(callable).to_dict() for callable in callables

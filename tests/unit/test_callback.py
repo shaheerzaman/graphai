@@ -1,7 +1,6 @@
 import pytest
 import asyncio
-from graphai.callback import Callback
-from graphai import node, Graph
+from graphai import node, Callback, Graph
 
 
 @pytest.fixture
