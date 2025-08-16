@@ -1,54 +1,58 @@
-from typing import List, Dict, Any, Optional, Protocol, Type
+from typing import Any, Protocol, Type
 from graphai.callback import Callback
 from graphai.utils import logger
 
 
 class NodeProtocol(Protocol):
     """Protocol defining the interface of a decorated node."""
+
     name: str
     is_start: bool
     is_end: bool
     is_router: bool
     stream: bool
-    
+
     async def invoke(
-        self, 
-        input: Dict[str, Any], 
-        callback: Optional[Callback] = None, 
-        state: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]: ...
+        self,
+        input: dict[str, Any],
+        callback: Callback | None = None,
+        state: dict[str, Any] | None = None,
+    ) -> dict[str, Any]: ...
 
 
 class Graph:
     def __init__(
-        self, max_steps: int = 10, initial_state: Optional[Dict[str, Any]] = None
+        self, max_steps: int = 10, initial_state: dict[str, Any] | None = None
     ):
-        self.nodes: Dict[str, NodeProtocol] = {}
-        self.edges: List[Any] = []
-        self.start_node: Optional[NodeProtocol] = None
-        self.end_nodes: List[NodeProtocol] = []
+        self.nodes: dict[str, NodeProtocol] = {}
+        self.edges: list[Any] = []
+        self.start_node: NodeProtocol | None = None
+        self.end_nodes: list[NodeProtocol] = []
         self.Callback: Type[Callback] = Callback
         self.max_steps = max_steps
         self.state = initial_state or {}
 
     # Allow getting and setting the graph's internal state
-    def get_state(self) -> Dict[str, Any]:
+    def get_state(self) -> dict[str, Any]:
         """Get the current graph state."""
         return self.state
 
-    def set_state(self, state: Dict[str, Any]):
+    def set_state(self, state: dict[str, Any]) -> "Graph":
         """Set the graph state."""
         self.state = state
+        return self
 
-    def update_state(self, values: Dict[str, Any]):
+    def update_state(self, values: dict[str, Any]) -> "Graph":
         """Update the graph state with new values."""
         self.state.update(values)
+        return self
 
-    def reset_state(self):
+    def reset_state(self) -> "Graph":
         """Reset the graph state to an empty dict."""
         self.state = {}
+        return self
 
-    def add_node(self, node: NodeProtocol):
+    def add_node(self, node: NodeProtocol) -> "Graph":
         if node.name in self.nodes:
             raise Exception(f"Node with name '{node.name}' already exists.")
         self.nodes[node.name] = node
@@ -62,8 +66,9 @@ class Graph:
             self.start_node = node
         if node.is_end:
             self.end_nodes.append(node)
+        return self
 
-    def add_edge(self, source: NodeProtocol | str, destination: NodeProtocol | str):
+    def add_edge(self, source: NodeProtocol | str, destination: NodeProtocol | str) -> "Graph":
         """Adds an edge between two nodes that already exist in the graph.
 
         Args:
@@ -72,58 +77,76 @@ class Graph:
         """
         source_node, destination_node = None, None
         # get source node from graph
+        source_name: str
         if isinstance(source, str):
             source_node = self.nodes.get(source)
+            source_name = source
         else:
             # Check if it's a node-like object by looking for required attributes
             if hasattr(source, "name"):
                 source_node = self.nodes.get(source.name)
+                source_name = source.name
+            else:
+                source_name = str(source)
         if source_node is None:
             raise ValueError(
-                f"Node with name '{source.name if hasattr(source, 'name') else source}' not found."
+                f"Node with name '{source_name}' not found."
             )
         # get destination node from graph
+        destination_name: str
         if isinstance(destination, str):
             destination_node = self.nodes.get(destination)
+            destination_name = destination
         else:
             # Check if it's a node-like object by looking for required attributes
             if hasattr(destination, "name"):
                 destination_node = self.nodes.get(destination.name)
+                destination_name = destination.name
+            else:
+                destination_name = str(destination)
         if destination_node is None:
             raise ValueError(
-                f"Node with name '{destination.name if hasattr(destination, 'name') else destination}' not found."
+                f"Node with name '{destination_name}' not found."
             )
         edge = Edge(source_node, destination_node)
         self.edges.append(edge)
+        return self
 
     def add_router(
-        self, sources: list[NodeProtocol], router: NodeProtocol, destinations: List[NodeProtocol]
-    ):
+        self,
+        sources: list[NodeProtocol],
+        router: NodeProtocol,
+        destinations: list[NodeProtocol],
+    ) -> "Graph":
         if not router.is_router:
             raise TypeError("A router object must be passed to the router parameter.")
         [self.add_edge(source, router) for source in sources]
         for destination in destinations:
             self.add_edge(router, destination)
+        return self
 
-    def set_start_node(self, node: NodeProtocol):
+    def set_start_node(self, node: NodeProtocol) -> "Graph":
         self.start_node = node
+        return self
 
-    def set_end_node(self, node: NodeProtocol):
+    def set_end_node(self, node: NodeProtocol) -> "Graph":
         self.end_node = node
+        return self
 
-    def compile(self):
+    def compile(self) -> "Graph":
         if not self.start_node:
             raise Exception("Start node not defined.")
         if not self.end_nodes:
             raise Exception("No end nodes defined.")
         if not self._is_valid():
             raise Exception("Graph is not valid.")
+        return self
 
     def _is_valid(self):
         # Implement validation logic, e.g., checking for cycles, disconnected components, etc.
         return True
 
-    def _validate_output(self, output: Dict[str, Any], node_name: str):
+    def _validate_output(self, output: dict[str, Any], node_name: str):
         if not isinstance(output, dict):
             raise ValueError(
                 f"Expected dictionary output from node {node_name}. "
@@ -134,11 +157,11 @@ class Graph:
         # TODO JB: may need to add init callback here to init the queue on every new execution
         if callback is None:
             callback = self.get_callback()
-        
+
         # Type assertion to tell the type checker that start_node is not None after compile()
         assert self.start_node is not None, "Graph must be compiled before execution"
         current_node = self.start_node
-        
+
         state = input
         # Don't reset the graph state if it was initialized with initial_state
         steps = 0
@@ -191,7 +214,7 @@ class Graph:
         callback = self.Callback()
         return callback
 
-    def set_callback(self, callback_class: Type[Callback]):
+    def set_callback(self, callback_class: type[Callback]) -> "Graph":
         """Set the callback class that is returned by the `get_callback` method and used
         as the default callback when no callback is passed to the `execute` method.
 
@@ -199,6 +222,7 @@ class Graph:
         :type callback_class: Type[Callback]
         """
         self.Callback = callback_class
+        return self
 
     def _get_node_by_name(self, node_name: str) -> NodeProtocol:
         """Get a node by its name.
@@ -240,7 +264,7 @@ class Graph:
                 "Matplotlib is required for visualization. Please install it with 'pip install matplotlib'."
             )
 
-        G = nx.DiGraph()
+        G: Any = nx.DiGraph()
 
         for node in self.nodes.values():
             G.add_node(node.name)
@@ -264,11 +288,11 @@ class Graph:
                     y_coord[node] = y_max - i - 1
 
             # Set up the layout
-            pos = {}
+            pos: dict[Any, tuple[float, float]] = {}
             for i, generation in enumerate(generations):
                 x = 0
                 for node in generation:
-                    pos[node] = (x, y_coord[node])
+                    pos[node] = (float(x), float(y_coord[node]))
                     x += 1
 
             # Center each level horizontally

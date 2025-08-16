@@ -1,14 +1,11 @@
 [project]
 name = "graphai-lib"
-version = "0.0.6"
+version = "0.0.7"
 description = "Not an AI framework"
 readme = "README.md"
 requires-python = ">=3.10,<3.14"
 dependencies = [
-    "networkx>=3.4.2",
-    "matplotlib>=3.10.0",
     "pydantic>=2.11.1",
-    "colorlog>=6.9.0",
 ]
 
 [project.optional-dependencies]
@@ -31,3 +28,18 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
 packages = ["graphai", "graphai.nodes"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+follow_imports = "normal"
+strict_optional = true

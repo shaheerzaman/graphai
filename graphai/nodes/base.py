@@ -1,5 +1,5 @@
 import inspect
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable
 from pydantic import Field
 
 from graphai.callback import Callback
@@ -8,7 +8,7 @@ from graphai.utils import FunctionSchema
 
 class NodeMeta(type):
     @staticmethod
-    def positional_to_kwargs(cls_type, args) -> Dict[str, Any]:
+    def positional_to_kwargs(cls_type, args) -> dict[str, Any]:
         init_signature = inspect.signature(cls_type.__init__)
         init_params = {
             name: arg
@@ -73,7 +73,7 @@ class _Node:
                 params_dict = await self._parse_params(*args, **kwargs)
                 return await func(**params_dict)  # Pass only the necessary arguments
 
-            async def _parse_params(self, *args, **kwargs) -> Dict[str, Any]:
+            async def _parse_params(self, *args, **kwargs) -> dict[str, Any]:
                 # filter out unexpected keyword args
                 expected_kwargs = {
                     k: v for k, v in kwargs.items() if k in self._expected_params
@@ -133,9 +133,9 @@ class _Node:
             @classmethod
             async def invoke(
                 cls,
-                input: Dict[str, Any],
-                callback: Optional[Callback] = None,
-                state: Optional[Dict[str, Any]] = None,
+                input: dict[str, Any],
+                callback: Callback | None = None,
+                state: dict[str, Any] | None = None,
             ):
                 if callback:
                     if stream:
@@ -154,8 +154,6 @@ class _Node:
 
         NodeClass.__name__ = func.__name__
         node_class_name = name or func.__name__
-        if node_class_name is None:
-            raise ValueError("Unexpected error: node name not set.")
         NodeClass.name = node_class_name
         NodeClass.__doc__ = func.__doc__
         NodeClass.is_start = start
@@ -167,7 +165,7 @@ class _Node:
 
     def __call__(
         self,
-        func: Optional[Callable] = None,
+        func: Callable | None = None,
         start: bool = False,
         end: bool = False,
         stream: bool = False,
