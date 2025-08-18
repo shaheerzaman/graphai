@@ -253,14 +253,14 @@ class Graph:
         Optionally save to a file via `save_path`.
         """
         try:
-            import matplotlib.pyplot as plt  # type: ignore
+            import matplotlib.pyplot as plt
         except ImportError as e:
             raise ImportError(
                 "Graph visualization requires matplotlib. Install it with: `pip install matplotlib`"
             ) from e
 
         try:
-            import networkx as nx  # type: ignore
+            import networkx as nx
         except ImportError as e:
             raise ImportError(
                 "NetworkX is required for visualization. Please install it with `pip install networkx`."

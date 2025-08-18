@@ -25,7 +25,7 @@ def test_visualize_raises_helpful_error():
 
     # simulate missing matplotlib
     sys.modules["matplotlib"] = types.ModuleType("matplotlib")  # stub pkg
-    sys.modules["matplotlib.pyplot"] = None  # force import failure
+    sys.modules["matplotlib.pyplot"] = None  # type: ignore
     with pytest.raises(ImportError) as ei:
         g.visualize()
     assert "pip install matplotlib" in str(ei.value)
@@ -34,7 +34,7 @@ def test_visualize_raises_helpful_error():
 def test_visualize_saves_png(tmp_path):
     # skip if matplotlib actually isn't installed in CI
     try:
-        import matplotlib.pyplot as _  # type: ignore # noqa: F401
+        import matplotlib.pyplot  # noqa: F401
     except Exception:
         pytest.skip("matplotlib not installed")
     g = Graph()
