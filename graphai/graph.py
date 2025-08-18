@@ -1,6 +1,21 @@
+from __future__ import annotations
 from typing import Any, Protocol, Type
+from graphlib import TopologicalSorter, CycleError
 from graphai.callback import Callback
 from graphai.utils import logger
+
+
+# to fix mypy error
+class _HasName(Protocol):
+    name: str
+
+
+class GraphError(Exception):
+    pass
+
+
+class GraphCompileError(GraphError):
+    pass
 
 
 class NodeProtocol(Protocol):
@@ -20,6 +35,26 @@ class NodeProtocol(Protocol):
     ) -> dict[str, Any]: ...
 
 
+def _name_of(x: Any) -> str | None:
+    """Return the node name if x is a str or has .name, else None."""
+    if x is None:
+        return None
+    if isinstance(x, str):
+        return x
+    name = getattr(x, "name", None)
+    return name if isinstance(name, str) else None
+
+
+def _require_name(x: Any, kind: str) -> str:
+    """Like _name_of, but raises a helpful compile error when missing."""
+    s = _name_of(x)
+    if s is None:
+        raise GraphCompileError(
+            f"Edge {kind} must be a node name (str) or object with .name"
+        )
+    return s
+
+
 class Graph:
     def __init__(
         self, max_steps: int = 10, initial_state: dict[str, Any] | None = None
@@ -37,22 +72,22 @@ class Graph:
         """Get the current graph state."""
         return self.state
 
-    def set_state(self, state: dict[str, Any]) -> "Graph":
+    def set_state(self, state: dict[str, Any]) -> Graph:
         """Set the graph state."""
         self.state = state
         return self
 
-    def update_state(self, values: dict[str, Any]) -> "Graph":
+    def update_state(self, values: dict[str, Any]) -> Graph:
         """Update the graph state with new values."""
         self.state.update(values)
         return self
 
-    def reset_state(self) -> "Graph":
+    def reset_state(self) -> Graph:
         """Reset the graph state to an empty dict."""
         self.state = {}
         return self
 
-    def add_node(self, node: NodeProtocol) -> "Graph":
+    def add_node(self, node: NodeProtocol) -> Graph:
         if node.name in self.nodes:
             raise Exception(f"Node with name '{node.name}' already exists.")
         self.nodes[node.name] = node
@@ -70,7 +105,7 @@ class Graph:
 
     def add_edge(
         self, source: NodeProtocol | str, destination: NodeProtocol | str
-    ) -> "Graph":
+    ) -> Graph:
         """Adds an edge between two nodes that already exist in the graph.
 
         Args:
@@ -115,7 +150,7 @@ class Graph:
         sources: list[NodeProtocol],
         router: NodeProtocol,
         destinations: list[NodeProtocol],
-    ) -> "Graph":
+    ) -> Graph:
         if not router.is_router:
             raise TypeError("A router object must be passed to the router parameter.")
         [self.add_edge(source, router) for source in sources]
@@ -123,26 +158,162 @@ class Graph:
             self.add_edge(router, destination)
         return self
 
-    def set_start_node(self, node: NodeProtocol) -> "Graph":
+    def set_start_node(self, node: NodeProtocol) -> Graph:
         self.start_node = node
         return self
 
-    def set_end_node(self, node: NodeProtocol) -> "Graph":
+    def set_end_node(self, node: NodeProtocol) -> Graph:
         self.end_node = node
         return self
 
     def compile(self) -> "Graph":
-        if not self.start_node:
-            raise Exception("Start node not defined.")
-        if not self.end_nodes:
-            raise Exception("No end nodes defined.")
-        if not self._is_valid():
-            raise Exception("Graph is not valid.")
-        return self
+        """
+        Validate the graph:
+        - exactly one start node present (or Graph.start_node set)
+        - at least one end node present
+        - all edges reference known nodes
+        - no cycles
+        - all nodes reachable from the start
+        Returns self on success; raises GraphCompileError otherwise.
+        """
+        # nodes map
+        nodes = getattr(self, "nodes", None)
+        if not isinstance(nodes, dict) or not nodes:
+            raise GraphCompileError("No nodes have been added to the graph")
 
-    def _is_valid(self):
-        # Implement validation logic, e.g., checking for cycles, disconnected components, etc.
-        return True
+        start_name: str | None = None
+        # Bind and narrow the attribute for mypy
+        start_node: _HasName | None = getattr(self, "start_node", None)
+        if start_node is not None:
+            start_name = start_node.name
+        else:
+            starts = [
+                name
+                for name, n in nodes.items()
+                if getattr(n, "is_start", False) or getattr(n, "start", False)
+            ]
+            if len(starts) > 1:
+                raise GraphCompileError(f"Multiple start nodes defined: {starts}")
+            if len(starts) == 1:
+                start_name = starts[0]
+
+        if not start_name:
+            raise GraphCompileError("No start node defined")
+
+        # at least one end node
+        if not any(
+            getattr(n, "is_end", False) or getattr(n, "end", False)
+            for n in nodes.values()
+        ):
+            raise GraphCompileError("No end node defined")
+
+        # normalize edges into adjacency {src: set(dst)}
+        raw_edges = getattr(self, "edges", None)
+        adj: dict[str, set[str]] = {name: set() for name in nodes.keys()}
+
+        def _add_edge(src: str, dst: str) -> None:
+            if src not in nodes:
+                raise GraphCompileError(f"Edge references unknown source node: {src}")
+            if dst not in nodes:
+                raise GraphCompileError(
+                    f"Edge from {src} references unknown node(s): ['{dst}']"
+                )
+            adj[src].add(dst)
+
+        if raw_edges is None:
+            pass
+        elif isinstance(raw_edges, dict):
+            for raw_src, dsts in raw_edges.items():
+                src = _require_name(raw_src, "source")
+                dst_iter = (
+                    [dsts]
+                    if isinstance(dsts, (str,)) or getattr(dsts, "name", None)
+                    else list(dsts)
+                )
+                for d in dst_iter:
+                    dst = _require_name(d, "destination")
+                    _add_edge(src, dst)
+        else:
+            # generic iterable of “edge records”
+            try:
+                iterator = iter(raw_edges)
+            except TypeError:
+                raise GraphCompileError("Internal edge map has unsupported type")
+
+            for item in iterator:
+                # (src, dst) OR (src, Iterable[dst])
+                if isinstance(item, (tuple, list)) and len(item) == 2:
+                    raw_src, rhs = item
+                    src = _require_name(raw_src, "source")
+
+                    if isinstance(rhs, str) or getattr(rhs, "name", None):
+                        dst = _require_name(rhs, "destination")
+                        _add_edge(src, rhs)
+                    else:
+                        # assume iterable of dsts (strings or node-like)
+                        try:
+                            for d in rhs:
+                                dst = _require_name(d, "destination")
+                                _add_edge(src, d)
+                        except TypeError:
+                            raise GraphCompileError(
+                                "Edge tuple second item must be a destination or an iterable of destinations"
+                            )
+                    continue
+
+                # Mapping-style: {"source": "...", "destination": "..."} or {"src": "...", "dst": "..."}
+                if isinstance(item, dict):
+                    src = _require_name(item.get("source", item.get("src")), "source")
+                    dst = _require_name(
+                        item.get("destination", item.get("dst")), "destination"
+                    )
+                    _add_edge(src, dst)
+                    continue
+
+                # Object with attributes .source/.destination (or .src/.dst)
+                if hasattr(item, "source") or hasattr(item, "src"):
+                    src = _require_name(
+                        getattr(item, "source", getattr(item, "src", None)), "source"
+                    )
+                    dst = _require_name(
+                        getattr(item, "destination", getattr(item, "dst", None)),
+                        "destination",
+                    )
+                    _add_edge(src, dst)
+                    continue
+
+                # If none matched, this is an unsupported edge record
+                raise GraphCompileError(
+                    "Edges must be dict[str, Iterable[str]] or an iterable of (src, dst), "
+                    "(src, Iterable[dst]), mapping{'source'/'destination'}, or objects with .source/.destination"
+                )
+
+        # cycle detection
+        preds: dict[str, set[str]] = {n: set() for n in nodes.keys()}
+        for s, ds in adj.items():
+            for d in ds:
+                preds[d].add(s)
+
+        try:
+            list(TopologicalSorter(preds).static_order())
+        except CycleError as e:
+            raise GraphCompileError("Cycle detected in graph") from e
+
+        # reachability from start
+        seen: set[str] = set()
+        stack = [start_name]
+        while stack:
+            cur = stack.pop()
+            if cur in seen:
+                continue
+            seen.add(cur)
+            stack.extend(adj.get(cur, ()))
+
+        unreachable = sorted(set(nodes.keys()) - seen)
+        if unreachable:
+            raise GraphCompileError(f"Unreachable nodes: {unreachable}")
+
+        return self
 
     def _validate_output(self, output: dict[str, Any], node_name: str):
         if not isinstance(output, dict):
