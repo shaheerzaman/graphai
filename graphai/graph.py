@@ -1,6 +1,5 @@
 from __future__ import annotations
-from typing import Any, Protocol, Type
-from graphlib import TopologicalSorter, CycleError
+from typing import Any, Protocol 
 from graphai.callback import Callback
 from graphai.utils import logger
 
@@ -63,7 +62,7 @@ class Graph:
         self.edges: list[Any] = []
         self.start_node: NodeProtocol | None = None
         self.end_nodes: list[NodeProtocol] = []
-        self.Callback: Type[Callback] = Callback
+        self.Callback: type[Callback] = Callback
         self.max_steps = max_steps
         self.state = initial_state or {}
 
@@ -288,17 +287,6 @@ class Graph:
                     "(src, Iterable[dst]), mapping{'source'/'destination'}, or objects with .source/.destination"
                 )
 
-        # cycle detection
-        preds: dict[str, set[str]] = {n: set() for n in nodes.keys()}
-        for s, ds in adj.items():
-            for d in ds:
-                preds[d].add(s)
-
-        try:
-            list(TopologicalSorter(preds).static_order())
-        except CycleError as e:
-            raise GraphCompileError("Cycle detected in graph") from e
-
         # reachability from start
         seen: set[str] = set()
         stack = [start_name]
@@ -388,7 +376,7 @@ class Graph:
         as the default callback when no callback is passed to the `execute` method.
 
         :param callback_class: The callback class to use as the default callback.
-        :type callback_class: Type[Callback]
+        :type callback_class: type[Callback]
         """
         self.Callback = callback_class
         return self
