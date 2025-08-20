@@ -12,7 +12,7 @@ log_stream = True
 
 class StrEnum(Enum):
     def __str__(self) -> str:
-        return self.value
+        return str(self.value)
 
 class GraphEventType(StrEnum):
     START = "start"
@@ -271,20 +271,20 @@ class EventCallback(Callback):
         if self._done:
             raise RuntimeError("Cannot add tokens to a closed stream")
         self._check_node_name(node_name=node_name)
-        token = GraphEvent(type=GraphEventType.CALLBACK, identifier=self.identifier, token=token, params=None)
+        event = GraphEvent(type=GraphEventType.CALLBACK, identifier=self.identifier, token=token, params=None)
         # otherwise we just assume node is correct and send token
-        self.queue.put_nowait(token)
+        self.queue.put_nowait(event)
 
     async def acall(self, token: str, node_name: str | None = None):
         # TODO JB: do we need to have `node_name` param?
         if self._done:
             raise RuntimeError("Cannot add tokens to a closed stream")
         self._check_node_name(node_name=node_name)
-        token = GraphEvent(type=GraphEventType.CALLBACK, identifier=self.identifier, token=token, params=None)
+        event = GraphEvent(type=GraphEventType.CALLBACK, identifier=self.identifier, token=token, params=None)
         # otherwise we just assume node is correct and send token
-        self.queue.put_nowait(token)
+        self.queue.put_nowait(event)
 
-    async def aiter(self) -> AsyncIterator[str]:
+    async def aiter(self) -> AsyncIterator[GraphEvent]:  # type: ignore[override]
         """Used by receiver to get the tokens from the stream queue. Creates
         a generator that yields tokens from the queue until the END token is
         received.
