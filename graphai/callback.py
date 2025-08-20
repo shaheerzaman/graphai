@@ -258,7 +258,7 @@ class EventCallback(Callback):
         warnings.warn(
             "The `special_token_format` and `token_format` parameters are " +
             "deprecated and will be removed in v0.1.0.",
-            DeprecatedWarning
+            DeprecationWarning
         )
         if special_token_format is None:
             special_token_format = "<{identifier}:{token}:{params}>"
