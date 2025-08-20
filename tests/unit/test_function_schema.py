@@ -46,7 +46,7 @@ def test_function_schema_to_dict():
 
 def test_function_schema_to_openai_responses():
     schema = FunctionSchema.from_callable(scrape_webpage)
-    openai_responses_schema = schema.to_openai(api="responses")
+    openai_responses_schema = schema.to_openai(api="responses")  # type: ignore
     
     # Check that the structure is different from to_dict()
     assert openai_responses_schema["type"] == "function"

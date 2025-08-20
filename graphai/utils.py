@@ -1,10 +1,17 @@
-from enum import StrEnum
+from enum import Enum
 import inspect
 import os
+import sys
 from typing import Any, Callable 
 from pydantic import BaseModel, Field
 import logging
-import sys
+
+
+# we support python 3.10 so we define our own StrEnum (introduced in 3.11)
+class StrEnum(str, Enum):
+    """Backport of StrEnum for Python < 3.11"""
+    def __str__(self):
+        return self.value
 
 
 class ColoredFormatter(logging.Formatter):
