@@ -1,9 +1,18 @@
+from enum import Enum
 import inspect
 import os
-from typing import Any, Callable
-from pydantic import BaseModel, Field
-import logging
 import sys
+from typing import Any, Callable, Union, get_args, get_origin
+from pydantic import BaseModel, Field
+from pydantic_core import PydanticUndefined
+import logging
+
+
+# we support python 3.10 so we define our own StrEnum (introduced in 3.11)
+class StrEnum(str, Enum):
+    """Backport of StrEnum for Python < 3.11"""
+    def __str__(self):
+        return self.value
 
 
 class ColoredFormatter(logging.Formatter):
@@ -119,6 +128,9 @@ class Parameter(BaseModel):
             }
         }
 
+class OpenAIAPI(StrEnum):
+    COMPLETIONS = "completions"
+    RESPONSES = "responses"
 
 class FunctionSchema(BaseModel):
     """Class that consumes a function and can return a schema required by
@@ -167,29 +179,95 @@ class FunctionSchema(BaseModel):
         )
 
     @classmethod
-    def from_pydantic(cls, model: BaseModel) -> "FunctionSchema":
+    def from_pydantic(cls, model: type[BaseModel]) -> "FunctionSchema":
+        """Create a FunctionSchema from a Pydantic model class.
+        
+        :param model: The Pydantic model class to convert
+        :type model: type[BaseModel]
+        :return: FunctionSchema instance
+        :rtype: FunctionSchema
+        """
+        # Extract model metadata
+        name = model.__name__
+        description = model.__doc__ or ""
+        
+        # Build parameters list
+        parameters = []
         signature_parts = []
-        for field_name, field_model in model.__annotations__.items():
-            field_info = model.model_fields[field_name]
-            default_value = field_info.default
-            if default_value:
-                default_repr = repr(default_value)
-                signature_part = (
-                    f"{field_name}: {field_model.__name__} = {default_repr}"
-                )
+        
+        for field_name, field_info in model.model_fields.items():
+            # Get the field type
+            field_type = model.__annotations__.get(field_name)
+            
+            # Determine the type name - handle Optional and other generic types
+            type_name = str(field_type)
+            
+            # Try to extract the actual type from Optional[T] -> T
+            origin = get_origin(field_type)
+            args = get_args(field_type)
+            
+            if origin is Union:
+                # This is likely Optional[T] which is Union[T, None]
+                non_none_types = [arg for arg in args if arg is not type(None)]
+                if non_none_types:
+                    actual_type = non_none_types[0]
+                    if hasattr(actual_type, '__name__'):
+                        type_name = actual_type.__name__
+                    else:
+                        type_name = str(actual_type)
+            elif field_type and hasattr(field_type, '__name__'):
+                type_name = field_type.__name__
+            
+            # Check if field is required (no default value)
+            # In Pydantic v2, PydanticUndefined means no default
+            is_required = (
+                field_info.default is PydanticUndefined 
+                and field_info.default_factory is None
+            )
+            
+            # Get the actual default value
+            if field_info.default is not PydanticUndefined and field_info.default is not None:
+                default_value = field_info.default
+            elif field_info.default_factory is not None:
+                # For default_factory, we can't always call it without arguments
+                # Just use a placeholder to indicate there's a factory
+                try:
+                    # Try calling with no arguments (common case)
+                    default_value = field_info.default_factory()  # type: ignore[call-arg]
+                except TypeError:
+                    # If it needs arguments, just indicate it has a factory default
+                    default_value = "<factory>"
             else:
-                signature_part = f"{field_name}: {field_model.__name__}"
-            signature_parts.append(signature_part)
-        signature = f"({', '.join(signature_parts)}) -> str"
+                default_value = inspect.Parameter.empty
+            
+            # Add parameter
+            parameters.append(
+                Parameter(
+                    name=field_name,
+                    description=field_info.description,
+                    type=type_name,
+                    default=default_value,
+                    required=is_required,
+                )
+            )
+            
+            # Build signature part
+            if default_value != inspect.Parameter.empty:
+                signature_parts.append(f"{field_name}: {type_name} = {repr(default_value)}")
+            else:
+                signature_parts.append(f"{field_name}: {type_name}")
+        
+        signature = f"({', '.join(signature_parts)}) -> dict"
+        
         return cls.model_construct(
-            name=model.__class__.__name__,
-            description=model.__doc__ or "",
+            name=name,
+            description=description,
             signature=signature,
-            output="",  # TODO: Implement output
-            parameters=[],
+            output="dict",
+            parameters=parameters,
         )
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         schema_dict = {
             "type": "function",
             "function": {
@@ -210,14 +288,42 @@ class FunctionSchema(BaseModel):
         }
         return schema_dict
 
-    def to_openai(self) -> dict:
-        return self.to_dict()
+    def to_openai(self, api: OpenAIAPI=OpenAIAPI.COMPLETIONS) -> dict[str, Any]:
+        """Convert the function schema into OpenAI-compatible formats. Supports
+        both completions and responses APIs.
+
+        :param api: The API to convert to.
+        :type api: OpenAIAPI
+        :return: The function schema in OpenAI-compatible format.
+        :rtype: dict
+        """
+        if api == "completions":
+            return self.to_dict()
+        elif api == "responses":
+            return {
+                "type": "function",
+                "name": self.name,
+                "description": self.description,
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        k: v
+                        for param in self.parameters
+                        for k, v in param.to_dict().items()
+                    },
+                    "required": [
+                        param.name for param in self.parameters if param.required
+                    ],
+                },
+            }
+        else:
+            raise ValueError(f"Unrecognized OpenAI API: {api}")
 
 
 DEFAULT = set(["default", "openai", "ollama", "litellm"])
 
 
-def get_schemas(callables: list[Callable], format: str = "default") -> list[dict]:
+def get_schemas(callables: list[Callable], format: str = "default") -> list[dict[str, Any]]:
     if format in DEFAULT:
         return [
             FunctionSchema.from_callable(callable).to_dict() for callable in callables
