@@ -1,6 +1,7 @@
+from enum import StrEnum
 import inspect
 import os
-from typing import Any, Callable
+from typing import Any, Callable 
 from pydantic import BaseModel, Field
 import logging
 import sys
@@ -119,6 +120,9 @@ class Parameter(BaseModel):
             }
         }
 
+class OpenAIAPI(StrEnum):
+    COMPLETIONS = "completions"
+    RESPONSES = "responses"
 
 class FunctionSchema(BaseModel):
     """Class that consumes a function and can return a schema required by
@@ -189,7 +193,7 @@ class FunctionSchema(BaseModel):
             parameters=[],
         )
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         schema_dict = {
             "type": "function",
             "function": {
@@ -210,14 +214,42 @@ class FunctionSchema(BaseModel):
         }
         return schema_dict
 
-    def to_openai(self) -> dict:
-        return self.to_dict()
+    def to_openai(self, api: OpenAIAPI=OpenAIAPI.COMPLETIONS) -> dict[str, Any]:
+        """Convert the function schema into OpenAI-compatible formats. Supports
+        both completions and responses APIs.
+
+        :param api: The API to convert to.
+        :type api: OpenAIAPI
+        :return: The function schema in OpenAI-compatible format.
+        :rtype: dict
+        """
+        if api == "completions":
+            return self.to_dict()
+        elif api == "responses":
+            return {
+                "type": "function",
+                "name": self.name,
+                "description": self.description,
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        k: v
+                        for param in self.parameters
+                        for k, v in param.to_dict().items()
+                    },
+                    "required": [
+                        param.name for param in self.parameters if param.required
+                    ],
+                },
+            }
+        else:
+            raise ValueError(f"Unrecognized OpenAI API: {api}")
 
 
 DEFAULT = set(["default", "openai", "ollama", "litellm"])
 
 
-def get_schemas(callables: list[Callable], format: str = "default") -> list[dict]:
+def get_schemas(callables: list[Callable], format: str = "default") -> list[dict[str, Any]]:
     if format in DEFAULT:
         return [
             FunctionSchema.from_callable(callable).to_dict() for callable in callables

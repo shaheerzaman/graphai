@@ -42,3 +42,22 @@ def test_function_schema_to_dict():
         is None
     )
     assert dict_schema["function"]["parameters"]["required"] == ["url"]
+
+
+def test_function_schema_to_openai_responses():
+    schema = FunctionSchema.from_callable(scrape_webpage)
+    openai_responses_schema = schema.to_openai(api="responses")
+    
+    # Check that the structure is different from to_dict()
+    assert openai_responses_schema["type"] == "function"
+    assert openai_responses_schema["name"] == schema.name
+    assert openai_responses_schema["description"] == schema.description
+    
+    # Check parameters structure
+    assert openai_responses_schema["parameters"]["type"] == "object"
+    assert openai_responses_schema["parameters"]["properties"]["url"]["type"] == "string"
+    assert openai_responses_schema["parameters"]["properties"]["name"]["type"] == "string"
+    assert openai_responses_schema["parameters"]["required"] == ["url"]
+    
+    # Verify it doesn't have the nested "function" key like to_dict()
+    assert "function" not in openai_responses_schema
