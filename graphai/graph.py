@@ -1,5 +1,6 @@
 from __future__ import annotations
-from typing import Any, Protocol 
+from typing import Any, Protocol
+from graphlib import TopologicalSorter, CycleError
 from graphai.callback import Callback
 from graphai.utils import logger
 
@@ -165,14 +166,14 @@ class Graph:
         self.end_node = node
         return self
 
-    def compile(self) -> "Graph":
+    def compile(self, *, strict: bool = False) -> Graph:
         """
         Validate the graph:
         - exactly one start node present (or Graph.start_node set)
         - at least one end node present
         - all edges reference known nodes
-        - no cycles
         - all nodes reachable from the start
+          (optional) **no cycles** when strict=True
         Returns self on success; raises GraphCompileError otherwise.
         """
         # nodes map
@@ -300,6 +301,17 @@ class Graph:
         unreachable = sorted(set(nodes.keys()) - seen)
         if unreachable:
             raise GraphCompileError(f"Unreachable nodes: {unreachable}")
+
+        # optional cycle detection (strict mode)
+        if strict:
+            preds: dict[str, set[str]] = {n: set() for n in nodes.keys()}
+            for s, ds in adj.items():
+                for d in ds:
+                    preds[d].add(s)
+            try:
+                list(TopologicalSorter(preds).static_order())
+            except CycleError as e:
+                raise GraphCompileError("cycle detected in graph (strict mode)") from e
 
         return self
 
