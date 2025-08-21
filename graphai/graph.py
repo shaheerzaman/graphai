@@ -1,5 +1,6 @@
 from __future__ import annotations
-from typing import Any, Protocol 
+import asyncio
+from typing import Any, Iterable, Protocol
 from graphai.callback import Callback
 from graphai.utils import logger
 
@@ -361,6 +362,38 @@ class Graph:
             await callback.close()
             del state["callback"]
         return state
+
+    async def execute_many(
+        self, inputs: Iterable[dict[str, Any]], *, concurrency: int = 5
+    ) -> list[Any]:
+        """
+        Execute the graph on many inputs concurrently.
+
+        Parameters
+        ----------
+        inputs:
+            An iterable of input dicts to feed into the graph.
+        concurrency:
+            Maximum number of graph executions to run at once.
+        state:
+            Optional shared state to pass to each execution.
+            If you want isolated state per execution, pass None
+            and the graph’s normal semantics will apply.
+
+        Returns
+        -------
+        list[Any]
+            The list of results in the same order as `inputs`.
+        """
+
+        sem = asyncio.Semaphore(concurrency)
+
+        async def _run_one(inp: dict[str, Any]) -> Any:
+            async with sem:
+                return await self.execute(input=inp)
+
+        tasks = [asyncio.create_task(_run_one(i)) for i in inputs]
+        return await asyncio.gather(*tasks)
 
     def get_callback(self):
         """Get a new instance of the callback class.
