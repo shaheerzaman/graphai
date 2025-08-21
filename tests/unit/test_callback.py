@@ -1,6 +1,7 @@
 import pytest
 import asyncio
 from graphai import node, Callback, Graph
+from graphai.callback import EventCallback, GraphEvent, GraphEventType
 
 
 @pytest.fixture
@@ -202,6 +203,181 @@ class TestCallbackGraph:
             "[custom:node_d:end:]",
             "[custom:END:]",
         ]
+
+
+class TestEventCallback:
+    @pytest.mark.asyncio
+    async def test_event_callback_initialization(self):
+        """Test basic initialization of EventCallback class"""
+        cb = EventCallback()
+        assert cb.identifier == "graphai"
+        assert isinstance(cb.queue, asyncio.Queue)
+        assert hasattr(cb, 'events')
+        assert cb.events == []
+        await cb.close()
+
+    @pytest.mark.asyncio
+    async def test_event_callback_custom_initialization(self):
+        """Test initialization with custom identifier"""
+        cb = EventCallback(identifier="custom")
+        assert cb.identifier == "custom"
+        await cb.close()
+
+    @pytest.mark.asyncio
+    async def test_event_callback_deprecation_warning(self):
+        """Test that deprecated parameters trigger warnings"""
+        with pytest.warns(DeprecationWarning):
+            cb = EventCallback(special_token_format="custom")
+        await cb.close()
+
+    @pytest.mark.asyncio
+    async def test_graph_event_creation(self):
+        """Test GraphEvent dataclass creation"""
+        event = GraphEvent(
+            type=GraphEventType.CALLBACK,
+            identifier="test",
+            token="hello",
+            params={"key": "value"}
+        )
+        assert event.type == GraphEventType.CALLBACK
+        assert event.identifier == "test"
+        assert event.token == "hello"
+        assert event.params == {"key": "value"}
+
+    @pytest.mark.asyncio
+    async def test_event_callback_acall_creates_graph_event(self):
+        """Test that acall creates proper GraphEvent objects"""
+        cb = EventCallback()
+        await cb.acall("test_token")
+        
+        # Get the event from the queue
+        event = await cb.queue.get()
+        assert isinstance(event, GraphEvent)
+        assert event.type == GraphEventType.CALLBACK
+        assert event.identifier == "graphai"
+        assert event.token == "test_token"
+        assert event.params is None
+        await cb.close()
+
+    @pytest.mark.asyncio
+    async def test_event_callback_call_creates_graph_event(self):
+        """Test that __call__ creates proper GraphEvent objects"""
+        cb = EventCallback()
+        cb("test_token")
+        
+        # Get the event from the queue
+        event = cb.queue.get_nowait()
+        assert isinstance(event, GraphEvent)
+        assert event.type == GraphEventType.CALLBACK
+        assert event.identifier == "graphai"
+        assert event.token == "test_token"
+        assert event.params is None
+        await cb.close()
+
+    @pytest.mark.asyncio
+    async def test_event_callback_start_node(self):
+        """Test start_node creates proper GraphEvent"""
+        cb = EventCallback()
+        await cb.start_node("test_node")
+        
+        # Get the event from the queue
+        event = await cb.queue.get()
+        assert isinstance(event, GraphEvent)
+        assert event.type == GraphEventType.START_NODE
+        assert event.identifier == "graphai"
+        assert event.token == "test_node"
+        assert event.params is None
+        await cb.close()
+
+    @pytest.mark.asyncio
+    async def test_event_callback_end_node(self):
+        """Test end_node creates proper GraphEvent"""
+        cb = EventCallback()
+        cb.current_node_name = "test_node"
+        await cb.end_node("test_node")
+        
+        # Get the event from the queue
+        event = await cb.queue.get()
+        assert isinstance(event, GraphEvent)
+        assert event.type == GraphEventType.END_NODE
+        assert event.identifier == "graphai"
+        assert event.token == "test_node"
+        assert event.params is None
+        await cb.close()
+
+    @pytest.mark.asyncio
+    async def test_event_callback_close(self):
+        """Test close creates proper END GraphEvent"""
+        cb = EventCallback()
+        await cb.close()
+        
+        # Get the event from the queue
+        event = await cb.queue.get()
+        assert isinstance(event, GraphEvent)
+        assert event.type == GraphEventType.END
+        assert event.identifier == "graphai"
+        assert event.token is None
+        assert event.params is None
+
+    @pytest.mark.asyncio
+    async def test_event_callback_aiter_yields_graph_events(self):
+        """Test async iteration yields GraphEvent objects"""
+        cb = EventCallback()
+        
+        # Create a task that adds events and closes
+        async def add_events():
+            await cb.acall("token1")
+            await cb.acall("token2")
+            await cb.close()
+        
+        asyncio.create_task(add_events())
+        
+        events = []
+        async for event in cb.aiter():
+            events.append(event)
+        
+        assert len(events) == 3  # 2 tokens + 1 END
+        
+        # Check first token event
+        assert isinstance(events[0], GraphEvent)
+        assert events[0].type == GraphEventType.CALLBACK
+        assert events[0].token == "token1"
+        
+        # Check second token event
+        assert isinstance(events[1], GraphEvent)
+        assert events[1].type == GraphEventType.CALLBACK
+        assert events[1].token == "token2"
+        
+        # Check end event
+        assert isinstance(events[2], GraphEvent)
+        assert events[2].type == GraphEventType.END
+
+    @pytest.mark.asyncio
+    async def test_event_callback_build_special_token_not_implemented(self):
+        """Test that _build_special_token raises NotImplementedError"""
+        cb = EventCallback()
+        with pytest.raises(NotImplementedError):
+            await cb._build_special_token("test")
+        await cb.close()
+
+    @pytest.mark.asyncio
+    async def test_event_callback_inactive_node(self):
+        """Test behavior when node is inactive"""
+        cb = EventCallback()
+        await cb.start_node("test_node", active=False)
+        
+        # Queue should be empty since node is inactive
+        assert cb.queue.empty()
+        await cb.close()
+
+    @pytest.mark.asyncio
+    async def test_graph_event_type_enum_values(self):
+        """Test GraphEventType enum values"""
+        assert str(GraphEventType.START) == "start"
+        assert str(GraphEventType.END) == "end"
+        assert str(GraphEventType.START_NODE) == "start_node"
+        assert str(GraphEventType.END_NODE) == "end_node"
+        assert str(GraphEventType.CALLBACK) == "callback"
 
 
 # @pytest.mark.asyncio
