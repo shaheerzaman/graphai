@@ -2,7 +2,19 @@ from enum import Enum
 import inspect
 import os
 import sys
-from typing import Any, Callable, Union, get_args, get_origin
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    List,
+    Mapping,
+    Sequence,
+    Set,
+    Tuple,
+    Union,
+    get_args,
+    get_origin,
+)
 from pydantic import BaseModel, Field
 from pydantic_core import PydanticUndefined
 import logging
@@ -11,6 +23,7 @@ import logging
 # we support python 3.10 so we define our own StrEnum (introduced in 3.11)
 class StrEnum(str, Enum):
     """Backport of StrEnum for Python < 3.11"""
+
     def __str__(self):
         return self.value
 
@@ -59,7 +72,7 @@ def setup_custom_logger(name):
 
     if not logger.hasHandlers():
         add_coloured_handler(logger)
-        
+
         # Set log level from environment variable, default to INFO
         log_level = os.getenv("GRAPHAI_LOG_LEVEL", "INFO").upper()
         level_map = {
@@ -79,16 +92,49 @@ logger: logging.Logger = setup_custom_logger(__name__)
 
 
 def openai_type_mapping(param_type: str) -> str:
-    if param_type == "int":
-        return "number"
-    elif param_type == "float":
-        return "number"
-    elif param_type == "str":
-        return "string"
-    elif param_type == "bool":
-        return "boolean"
-    else:
+    """Map a friendly type string to an OpenAI-compatible JSON Schema type.
+
+    The input is a relaxed, human-friendly type string such as:
+    - "int", "float", "str", "bool"
+    - "list[int]", "tuple[str, int]", "set[str]"
+    - "dict[str, int]", "mapping[str, any]"
+    - "Optional[str]", "Union[int, str]"
+    - "any", "object"
+    """
+    s = (param_type or "").lower()
+
+    # Unwrap Optional[...] to its inner type
+    if s.startswith("optional[") and s.endswith("]"):
+        inner = s[len("optional[") : -1]
+        return openai_type_mapping(inner)
+
+    # Union[...] is ambiguous in JSON schema for OpenAI tools; degrade to object
+    if s.startswith("union["):
         return "object"
+
+    if s in {"int", "float", "number"}:
+        return "number"
+    if s in {"str", "string"}:
+        return "string"
+    if s in {"bool", "boolean"}:
+        return "boolean"
+
+    # Collections → array/object
+    if (
+        s.startswith("list")
+        or s.startswith("tuple")
+        or s.startswith("set")
+        or s.startswith("sequence")
+        or s.startswith("array")
+    ):
+        return "array"
+    if s.startswith("dict") or s.startswith("mapping"):
+        return "object"
+
+    # Fallbacks
+    if s in {"any", "none", "null", "object"}:
+        return "object"
+    return "object"
 
 
 class Parameter(BaseModel):
@@ -128,9 +174,11 @@ class Parameter(BaseModel):
             }
         }
 
+
 class OpenAIAPI(StrEnum):
     COMPLETIONS = "completions"
     RESPONSES = "responses"
+
 
 class FunctionSchema(BaseModel):
     """Class that consumes a function and can return a schema required by
@@ -152,20 +200,88 @@ class FunctionSchema(BaseModel):
         """
         if not callable(function):
             raise TypeError("Function must be a Callable")
-        
+
         name = function.__name__
         doc = inspect.getdoc(function)
         description = str(doc) if doc else ""
         if not description:
             logger.warning(f"Function {name} has no docstring")
+
         signature = str(inspect.signature(function))
         output = str(inspect.signature(function).return_annotation)
+
+        def _normalize_type_name(tp: Any) -> str:
+            """Create a friendly, normalized type name string from an annotation.
+
+            Handles typing generics (List/Dict/Union/Optional/etc.), builtins,
+            and missing annotations gracefully.
+            """
+            if tp is inspect._empty:
+                return "any"
+
+            if tp is Any:
+                return "any"
+
+            origin = get_origin(tp)
+            args = get_args(tp)
+
+            # Union and Optional
+            if origin is Union:
+                non_none = [a for a in args if a is not type(None)]  # noqa: E721
+                if len(non_none) == 1 and len(args) == 2:
+                    return f"Optional[{_normalize_type_name(non_none[0])}]"
+                inner = ", ".join(_normalize_type_name(a) for a in non_none)
+                return f"Union[{inner}]"
+
+            # Sequences
+            if origin in (list,):
+                inner = (
+                    ", ".join(_normalize_type_name(a) for a in args) if args else "any"
+                )
+                return f"list[{inner}]" if args else "list"
+
+            if origin in (List, Sequence, Set, tuple, Tuple, set):  # noqa: F821
+                container = (
+                    "list"
+                    if origin in (List, Sequence, Set)
+                    else ("tuple" if origin in (tuple, Tuple) else "set")
+                )
+                if container == "tuple" and len(args) == 2 and args[1] is Ellipsis:
+                    # Tuple[T, ...]
+                    inner = f"{_normalize_type_name(args[0])}, ..."
+                else:
+                    inner = (
+                        ", ".join(_normalize_type_name(a) for a in args)
+                        if args
+                        else "any"
+                    )
+                return f"{container}[{inner}]" if args else container
+
+            # Mappings / Dicts
+            if origin in (dict, Dict, Mapping):
+                if args:
+                    key = _normalize_type_name(args[0]) if len(args) > 0 else "any"
+                    val = _normalize_type_name(args[1]) if len(args) > 1 else "any"
+                    return f"dict[{key}, {val}]"
+                return "dict"
+
+            # Plain classes / builtins
+            try:
+                name_attr = getattr(tp, "__name__", None)
+                if isinstance(name_attr, str):
+                    return name_attr
+            except Exception:
+                pass
+            # Fallback to string representation
+            return str(tp)
+
         parameters = []
         for param in inspect.signature(function).parameters.values():
+            type_name = _normalize_type_name(param.annotation)
             parameters.append(
                 Parameter(
                     name=param.name,
-                    type=param.annotation.__name__,
+                    type=type_name,
                     default=param.default,
                     required=param.default is inspect.Parameter.empty,
                 )
@@ -181,7 +297,7 @@ class FunctionSchema(BaseModel):
     @classmethod
     def from_pydantic(cls, model: type[BaseModel]) -> "FunctionSchema":
         """Create a FunctionSchema from a Pydantic model class.
-        
+
         :param model: The Pydantic model class to convert
         :type model: type[BaseModel]
         :return: FunctionSchema instance
@@ -190,43 +306,46 @@ class FunctionSchema(BaseModel):
         # Extract model metadata
         name = model.__name__
         description = model.__doc__ or ""
-        
+
         # Build parameters list
         parameters = []
         signature_parts = []
-        
+
         for field_name, field_info in model.model_fields.items():
             # Get the field type
             field_type = model.__annotations__.get(field_name)
-            
+
             # Determine the type name - handle Optional and other generic types
             type_name = str(field_type)
-            
+
             # Try to extract the actual type from Optional[T] -> T
             origin = get_origin(field_type)
             args = get_args(field_type)
-            
+
             if origin is Union:
                 # This is likely Optional[T] which is Union[T, None]
                 non_none_types = [arg for arg in args if arg is not type(None)]
                 if non_none_types:
                     actual_type = non_none_types[0]
-                    if hasattr(actual_type, '__name__'):
+                    if hasattr(actual_type, "__name__"):
                         type_name = actual_type.__name__
                     else:
                         type_name = str(actual_type)
-            elif field_type and hasattr(field_type, '__name__'):
+            elif field_type and hasattr(field_type, "__name__"):
                 type_name = field_type.__name__
-            
+
             # Check if field is required (no default value)
             # In Pydantic v2, PydanticUndefined means no default
             is_required = (
-                field_info.default is PydanticUndefined 
+                field_info.default is PydanticUndefined
                 and field_info.default_factory is None
             )
-            
+
             # Get the actual default value
-            if field_info.default is not PydanticUndefined and field_info.default is not None:
+            if (
+                field_info.default is not PydanticUndefined
+                and field_info.default is not None
+            ):
                 default_value = field_info.default
             elif field_info.default_factory is not None:
                 # For default_factory, we can't always call it without arguments
@@ -239,7 +358,7 @@ class FunctionSchema(BaseModel):
                     default_value = "<factory>"
             else:
                 default_value = inspect.Parameter.empty
-            
+
             # Add parameter
             parameters.append(
                 Parameter(
@@ -250,15 +369,17 @@ class FunctionSchema(BaseModel):
                     required=is_required,
                 )
             )
-            
+
             # Build signature part
             if default_value != inspect.Parameter.empty:
-                signature_parts.append(f"{field_name}: {type_name} = {repr(default_value)}")
+                signature_parts.append(
+                    f"{field_name}: {type_name} = {repr(default_value)}"
+                )
             else:
                 signature_parts.append(f"{field_name}: {type_name}")
-        
+
         signature = f"({', '.join(signature_parts)}) -> dict"
-        
+
         return cls.model_construct(
             name=name,
             description=description,
@@ -288,7 +409,7 @@ class FunctionSchema(BaseModel):
         }
         return schema_dict
 
-    def to_openai(self, api: OpenAIAPI=OpenAIAPI.COMPLETIONS) -> dict[str, Any]:
+    def to_openai(self, api: OpenAIAPI = OpenAIAPI.COMPLETIONS) -> dict[str, Any]:
         """Convert the function schema into OpenAI-compatible formats. Supports
         both completions and responses APIs.
 
@@ -323,7 +444,9 @@ class FunctionSchema(BaseModel):
 DEFAULT = set(["default", "openai", "ollama", "litellm"])
 
 
-def get_schemas(callables: list[Callable], format: str = "default") -> list[dict[str, Any]]:
+def get_schemas(
+    callables: list[Callable], format: str = "default"
+) -> list[dict[str, Any]]:
     if format in DEFAULT:
         return [
             FunctionSchema.from_callable(callable).to_dict() for callable in callables
