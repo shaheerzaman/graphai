@@ -378,24 +378,18 @@ class Graph:
     async def execute_many(
         self, inputs: Iterable[dict[str, Any]], *, concurrency: int = 5
     ) -> list[Any]:
-        """
-        Execute the graph on many inputs concurrently.
+        """Execute the graph on many inputs concurrently.
 
-        Parameters
-        ----------
-        inputs:
-            An iterable of input dicts to feed into the graph.
-        concurrency:
-            Maximum number of graph executions to run at once.
-        state:
-            Optional shared state to pass to each execution.
+        :param inputs: An iterable of input dicts to feed into the graph.
+        :type inputs: Iterable[dict]
+        :param concurrency: Maximum number of graph executions to run at once.
+        :type concurrency: int
+        :param state: Optional shared state to pass to each execution.
             If you want isolated state per execution, pass None
-            and the graph’s normal semantics will apply.
-
-        Returns
-        -------
-        list[Any]
-            The list of results in the same order as `inputs`.
+            and the graph's normal semantics will apply.
+        :type state: Optional[Any]
+        :returns: The list of results in the same order as ``inputs``.
+        :rtype: list[Any]
         """
 
         sem = asyncio.Semaphore(concurrency)
