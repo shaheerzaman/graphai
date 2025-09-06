@@ -1,6 +1,7 @@
 import asyncio
 from dataclasses import dataclass
 from enum import Enum
+import json
 from pydantic import Field
 from typing import Any
 from collections.abc import AsyncIterator
@@ -42,6 +43,22 @@ class GraphEvent:
     identifier: str
     token: str | None = None
     params: dict[str, Any] | None = None
+
+    def encode(self, charset: str = "utf-8") -> bytes:
+        """Encodes the event as a JSON string, important for compatability with FastAPI
+        and starlette.
+
+        :param charset: The character set to use for encoding the event.
+        :type charset: str
+        """
+        event_dict = {
+            "type": self.type.value if hasattr(self.type, "value") else str(self.type),
+            "identifier": self.identifier,
+            "token": self.token,
+            "params": self.params,
+        }
+        data = f"data: {json.dumps(event_dict, ensure_ascii=False, separators=(',', ':'))}\n\n"
+        return data.encode(charset)
 
 
 class Callback:
