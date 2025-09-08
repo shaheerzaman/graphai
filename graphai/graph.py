@@ -4,7 +4,6 @@ from typing import Any, Iterable, Protocol
 from graphlib import TopologicalSorter, CycleError
 from graphai.callback import Callback
 from graphai.utils import logger
-import asyncio
 
 
 # to fix mypy error
@@ -71,16 +70,34 @@ class Graph:
 
     # Allow getting and setting the graph's internal state
     def get_state(self) -> dict[str, Any]:
-        """Get the current graph state."""
+        """Get the current graph state.
+
+        Returns:
+            The current graph state.
+        """
         return self.state
 
     def set_state(self, state: dict[str, Any]) -> Graph:
-        """Set the graph state."""
+        """Set the graph state.
+
+        Args:
+            state: The new state to set for the graph.
+
+        Returns:
+            The graph instance.
+        """
         self.state = state
         return self
 
     def update_state(self, values: dict[str, Any]) -> Graph:
-        """Update the graph state with new values."""
+        """Update the graph state with new values.
+
+        Args:
+            values: The new values to update the graph state with.
+            
+        Returns:
+            The graph instance.
+        """
         self.state.update(values)
         return self
 
@@ -90,6 +107,14 @@ class Graph:
         return self
 
     def add_node(self, node: NodeProtocol) -> Graph:
+        """Adds a node to the graph.
+
+        Args:
+            node: The node to add to the graph.
+
+        Raises:
+            Exception: If a node with the same name already exists in the graph.
+        """
         if node.name in self.nodes:
             raise Exception(f"Node with name '{node.name}' already exists.")
         self.nodes[node.name] = node
@@ -153,6 +178,14 @@ class Graph:
         router: NodeProtocol,
         destinations: list[NodeProtocol],
     ) -> Graph:
+        """Adds a router node, allowing for a decision to be made on which branch to
+        follow based on the `choice` output of the router node.
+        
+        Args:
+            sources: The list of source nodes for the router.
+            router: The router node.
+            destinations: The list of destination nodes for the router.
+        """
         if not router.is_router:
             raise TypeError("A router object must be passed to the router parameter.")
         [self.add_edge(source, router) for source in sources]
@@ -169,8 +202,7 @@ class Graph:
         return self
 
     def compile(self, *, strict: bool = False) -> Graph:
-        """
-        Validate the graph:
+        """Validate the graph:
         - exactly one start node present (or Graph.start_node set)
         - at least one end node present
         - all edges reference known nodes

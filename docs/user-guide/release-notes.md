@@ -1,5 +1,10 @@
 See below for all notable changes to the GraphAI library.
 
+## [0.0.10] - TBD
+
+### Added
+- Direct Starlette support for `GraphEvent` and `EventCallback` objects
+
 ## [0.0.9] - 2025-09-05
 
 ### Added
