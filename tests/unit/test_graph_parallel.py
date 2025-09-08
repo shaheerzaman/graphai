@@ -153,3 +153,89 @@ async def test_router_node_not_parallel():
     # only branch_a should run; branch_b's output should not appear
     assert result.get("a") == 1
     assert "b" not in result
+
+@pytest.mark.asyncio
+async def test_parallel_state_brances():
+    """Parallel execution without join edge will result in multiple end outputs."""
+
+    @node(start=True)
+    async def start(input: dict, state: dict):
+        state["history"] = ["start"]
+        return {}
+
+    @node
+    async def branch_a(input: dict, state: dict):
+        state["history"].append("branch_a")
+        return {}
+
+    @node
+    async def branch_b(input: dict, state: dict):
+        state["history"].append("branch_b")
+        return {}
+
+    @node(end=True)
+    async def end(input: dict, state: dict):
+        state["history"].append("end")
+        return {}
+
+    g = Graph()
+    g.add_node(start).add_node(branch_a).add_node(branch_b).add_node(end)
+    # linear to router
+    g.add_edge(start, branch_a)
+    g.add_edge(start, branch_b)
+    # both branches connect to end
+    g.add_edge(branch_a, end)
+    g.add_edge(branch_b, end)
+
+    _ = await g.execute(input={"input": {}})
+    # assert that the state contains everything from both branches
+    state = g.get_state()
+    assert "start" in state["history"] 
+    assert "branch_a" in state["history"] 
+    assert "branch_b" in state["history"] 
+    assert "end" in state["history"] 
+    # assert that we have two "end" in state history
+    assert len([x for x in state["history"] if x == "end"]) == 2
+
+
+@pytest.mark.asyncio
+async def test_parallel_state_join():
+    """Parallel execution with join edge will result in one end output."""
+
+    @node(start=True)
+    async def start(input: dict, state: dict):
+        state["history"] = ["start"]
+        return {}
+
+    @node
+    async def branch_a(input: dict, state: dict):
+        state["history"].append("branch_a")
+        return {}
+
+    @node
+    async def branch_b(input: dict, state: dict):
+        state["history"].append("branch_b")
+        return {}
+
+    @node(end=True)
+    async def end(input: dict, state: dict):
+        state["history"].append("end")
+        return {}
+
+    g = Graph()
+    g.add_node(start).add_node(branch_a).add_node(branch_b).add_node(end)
+    # linear to router
+    g.add_edge(start, branch_a)
+    g.add_edge(start, branch_b)
+    # both branches connect to end via join
+    g.add_join([branch_a, branch_b], end)
+
+    _ = await g.execute(input={"input": {}})
+    # assert that the state contains everything from both branches
+    state = g.get_state()
+    assert "start" in state["history"] 
+    assert "branch_a" in state["history"] 
+    assert "branch_b" in state["history"] 
+    assert "end" in state["history"] 
+    # assert that we only have one "end" in state history
+    assert len([x for x in state["history"] if x == "end"]) == 1
