@@ -2,6 +2,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any, Iterable, Protocol
 from graphlib import TopologicalSorter, CycleError
+
 from graphai.callback import Callback
 from graphai.utils import logger
 
@@ -64,22 +65,41 @@ class Graph:
         self.edges: list[Any] = []
         self.start_node: NodeProtocol | None = None
         self.end_nodes: list[NodeProtocol] = []
+        self.join_nodes: set[NodeProtocol] = set()
         self.Callback: type[Callback] = Callback
         self.max_steps = max_steps
         self.state = initial_state or {}
 
     # Allow getting and setting the graph's internal state
     def get_state(self) -> dict[str, Any]:
-        """Get the current graph state."""
+        """Get the current graph state.
+
+        Returns:
+            The current graph state.
+        """
         return self.state
 
     def set_state(self, state: dict[str, Any]) -> Graph:
-        """Set the graph state."""
+        """Set the graph state.
+
+        Args:
+            state: The new state to set for the graph.
+
+        Returns:
+            The graph instance.
+        """
         self.state = state
         return self
 
     def update_state(self, values: dict[str, Any]) -> Graph:
-        """Update the graph state with new values."""
+        """Update the graph state with new values.
+
+        Args:
+            values: The new values to update the graph state with.
+            
+        Returns:
+            The graph instance.
+        """
         self.state.update(values)
         return self
 
@@ -89,6 +109,14 @@ class Graph:
         return self
 
     def add_node(self, node: NodeProtocol) -> Graph:
+        """Adds a node to the graph.
+
+        Args:
+            node: The node to add to the graph.
+
+        Raises:
+            Exception: If a node with the same name already exists in the graph.
+        """
         if node.name in self.nodes:
             raise Exception(f"Node with name '{node.name}' already exists.")
         self.nodes[node.name] = node
@@ -104,6 +132,18 @@ class Graph:
             self.end_nodes.append(node)
         return self
 
+    def _get_node(self, node_candidate: NodeProtocol | str) -> NodeProtocol:
+        # first get node from graph
+        if isinstance(node_candidate, str):
+            node = self.nodes.get(node_candidate)
+        else:
+            # check if it's a node-like object by looking for required attributes
+            if hasattr(node_candidate, "name"):
+                node = self.nodes.get(node_candidate.name)
+        if node is None:
+            raise ValueError(f"Node with name '{node_candidate}' not found.")
+        return node
+
     def add_edge(
         self, source: NodeProtocol | str, destination: NodeProtocol | str
     ) -> Graph:
@@ -115,33 +155,10 @@ class Graph:
         """
         source_node, destination_node = None, None
         # get source node from graph
-        source_name: str
-        if isinstance(source, str):
-            source_node = self.nodes.get(source)
-            source_name = source
-        else:
-            # Check if it's a node-like object by looking for required attributes
-            if hasattr(source, "name"):
-                source_node = self.nodes.get(source.name)
-                source_name = source.name
-            else:
-                source_name = str(source)
-        if source_node is None:
-            raise ValueError(f"Node with name '{source_name}' not found.")
+        source_node = self._get_node(node_candidate=source)
         # get destination node from graph
-        destination_name: str
-        if isinstance(destination, str):
-            destination_node = self.nodes.get(destination)
-            destination_name = destination
-        else:
-            # Check if it's a node-like object by looking for required attributes
-            if hasattr(destination, "name"):
-                destination_node = self.nodes.get(destination.name)
-                destination_name = destination.name
-            else:
-                destination_name = str(destination)
-        if destination_node is None:
-            raise ValueError(f"Node with name '{destination_name}' not found.")
+        destination_node = self._get_node(node_candidate=destination)
+        # create edge
         edge = Edge(source_node, destination_node)
         self.edges.append(edge)
         return self
@@ -152,6 +169,14 @@ class Graph:
         router: NodeProtocol,
         destinations: list[NodeProtocol],
     ) -> Graph:
+        """Adds a router node, allowing for a decision to be made on which branch to
+        follow based on the `choice` output of the router node.
+        
+        Args:
+            sources: The list of source nodes for the router.
+            router: The router node.
+            destinations: The list of destination nodes for the router.
+        """
         if not router.is_router:
             raise TypeError("A router object must be passed to the router parameter.")
         [self.add_edge(source, router) for source in sources]
@@ -168,8 +193,7 @@ class Graph:
         return self
 
     def compile(self, *, strict: bool = False) -> Graph:
-        """
-        Validate the graph:
+        """Validate the graph:
         - exactly one start node present (or Graph.start_node set)
         - at least one end node present
         - all edges reference known nodes
@@ -181,7 +205,6 @@ class Graph:
         nodes = getattr(self, "nodes", None)
         if not isinstance(nodes, dict) or not nodes:
             raise GraphCompileError("No nodes have been added to the graph")
-
         start_name: str | None = None
         # Bind and narrow the attribute for mypy
         start_node: _HasName | None = getattr(self, "start_node", None)
@@ -197,21 +220,17 @@ class Graph:
                 raise GraphCompileError(f"Multiple start nodes defined: {starts}")
             if len(starts) == 1:
                 start_name = starts[0]
-
         if not start_name:
             raise GraphCompileError("No start node defined")
-
         # at least one end node
         if not any(
             getattr(n, "is_end", False) or getattr(n, "end", False)
             for n in nodes.values()
         ):
             raise GraphCompileError("No end node defined")
-
         # normalize edges into adjacency {src: set(dst)}
         raw_edges = getattr(self, "edges", None)
         adj: dict[str, set[str]] = {name: set() for name in nodes.keys()}
-
         def _add_edge(src: str, dst: str) -> None:
             if src not in nodes:
                 raise GraphCompileError(f"Edge references unknown source node: {src}")
@@ -220,7 +239,6 @@ class Graph:
                     f"Edge from {src} references unknown node(s): ['{dst}']"
                 )
             adj[src].add(dst)
-
         if raw_edges is None:
             pass
         elif isinstance(raw_edges, dict):
@@ -240,13 +258,11 @@ class Graph:
                 iterator = iter(raw_edges)
             except TypeError:
                 raise GraphCompileError("Internal edge map has unsupported type")
-
             for item in iterator:
                 # (src, dst) OR (src, Iterable[dst])
                 if isinstance(item, (tuple, list)) and len(item) == 2:
                     raw_src, rhs = item
                     src = _require_name(raw_src, "source")
-
                     if isinstance(rhs, str) or getattr(rhs, "name", None):
                         dst = _require_name(rhs, "destination")
                         _add_edge(src, rhs)
@@ -261,7 +277,6 @@ class Graph:
                                 "Edge tuple second item must be a destination or an iterable of destinations"
                             )
                     continue
-
                 # Mapping-style: {"source": "...", "destination": "..."} or {"src": "...", "dst": "..."}
                 if isinstance(item, dict):
                     src = _require_name(item.get("source", item.get("src")), "source")
@@ -270,7 +285,6 @@ class Graph:
                     )
                     _add_edge(src, dst)
                     continue
-
                 # Object with attributes .source/.destination (or .src/.dst)
                 if hasattr(item, "source") or hasattr(item, "src"):
                     src = _require_name(
@@ -282,13 +296,11 @@ class Graph:
                     )
                     _add_edge(src, dst)
                     continue
-
                 # If none matched, this is an unsupported edge record
                 raise GraphCompileError(
                     "Edges must be dict[str, Iterable[str]] or an iterable of (src, dst), "
                     "(src, Iterable[dst]), mapping{'source'/'destination'}, or objects with .source/.destination"
                 )
-
         # reachability from start
         seen: set[str] = set()
         stack = [start_name]
@@ -298,11 +310,9 @@ class Graph:
                 continue
             seen.add(cur)
             stack.extend(adj.get(cur, ()))
-
         unreachable = sorted(set(nodes.keys()) - seen)
         if unreachable:
             raise GraphCompileError(f"Unreachable nodes: {unreachable}")
-
         # optional cycle detection (strict mode)
         if strict:
             preds: dict[str, set[str]] = {n: set() for n in nodes.keys()}
@@ -313,7 +323,6 @@ class Graph:
                 list(TopologicalSorter(preds).static_order())
             except CycleError as e:
                 raise GraphCompileError("cycle detected in graph (strict mode)") from e
-
         return self
 
     def _validate_output(self, output: dict[str, Any], node_name: str):
@@ -323,57 +332,123 @@ class Graph:
                 f"Instead, got {type(output)} from '{output}'."
             )
 
-    async def execute(self, input, callback: Callback | None = None):
+    def _get_next_nodes(self, current_node: NodeProtocol) -> list[NodeProtocol]:
+        """Return all successor nodes for the given node."""
+        # we skip JoinEdge because they don't have regular destinations
+        # and next nodes for those are handled in the execute method
+        return [
+            edge.destination
+            for edge in self.edges
+            if isinstance(edge, Edge) and edge.source == current_node
+        ]
+
+    async def _invoke_node(
+        self, node: NodeProtocol, state: dict[str, Any], callback: Callback
+    ):
+        if node.stream:
+            await callback.start_node(node_name=node.name)
+            output = await node.invoke(input=state, callback=callback, state=self.state)
+            self._validate_output(output=output, node_name=node.name)
+            await callback.end_node(node_name=node.name)
+        else:
+            output = await node.invoke(input=state, state=self.state)
+            self._validate_output(output=output, node_name=node.name)
+        return output
+
+    async def _execute_branch(
+        self,
+        current_node: NodeProtocol,
+        state: dict[str, Any],
+        callback: Callback,
+        steps: int,
+        stop_at_join: bool = False,
+    ):
+        """Recursively execute a branch starting from `current_node`.
+        When a node has multiple successors, run them concurrently and merge their outputs."""
+        while True:
+            output = await self._invoke_node(current_node, state, callback)
+            state = {**state, **output}  # merge node output into local state
+            if current_node.is_end:
+                break
+            if current_node.is_router:
+                next_node_name = str(output["choice"])
+                del output["choice"]
+                current_node = self._get_node_by_name(node_name=next_node_name)
+                continue
+            if stop_at_join and current_node in self.join_nodes:
+                # for parallel branches, wait at JoinEdge until all branches are complete
+                return state
+
+            next_nodes = self._get_next_nodes(current_node)
+            if not next_nodes:
+                raise Exception(
+                    f"No outgoing edge found for current node '{current_node.name}'."
+                )
+            if len(next_nodes) == 1:
+                current_node = next_nodes[0]
+            else:
+                # Run each branch concurrently
+                results = await asyncio.gather(
+                    *[
+                        self._execute_branch(
+                            current_node=n,
+                            state=state.copy(),
+                            callback=callback,
+                            steps=steps + 1,
+                            stop_at_join=True,  # force parallel branches to wait at JoinEdge
+                        )
+                        for n in next_nodes
+                    ]
+                )
+                # merge states returned by each branch
+                merged = state.copy()
+                for res in results:
+                    for k, v in res.items():
+                        if k != "callback":
+                            merged[k] = v
+                if set(next_nodes) & self.join_nodes:
+                    # if any of the next nodes are join nodes, we need to continue from the
+                    # JoinEdge.destination node
+                    join_edge = next(
+                        (
+                            e for e in self.edges if isinstance(e, JoinEdge)
+                            and any(n in e.sources for n in next_nodes)
+                        ),
+                        None
+                    )
+                    if not join_edge:
+                        raise Exception("No JoinEdge found for next_nodes")
+                    # set current_node (for next iteration) to the JoinEdge.destination
+                    current_node = join_edge.destination
+                    # continue to the destination node with our merged state
+                    state = merged
+                    continue
+                else:
+                    # if this happens we have multiple branches that do not join so we
+                    # can just return the merged states
+                    return merged
+            steps += 1
+            if steps >= self.max_steps:
+                raise Exception(
+                    f"Max steps reached: {self.max_steps}. You can modify this by setting `max_steps` when initializing the Graph object."
+                )
+        return state
+
+    async def execute(self, input: dict[str, Any], callback: Callback | None = None):
         # TODO JB: may need to add init callback here to init the queue on every new execution
         if callback is None:
             callback = self.get_callback()
 
         # Type assertion to tell the type checker that start_node is not None after compile()
         assert self.start_node is not None, "Graph must be compiled before execution"
-        current_node = self.start_node
 
         state = input
-        # Don't reset the graph state if it was initialized with initial_state
-        steps = 0
-        while True:
-            # we invoke the node here
-            if current_node.stream:
-                # add callback tokens and param here if we are streaming
-                await callback.start_node(node_name=current_node.name)
-                # Include graph's internal state in the node execution context
-                output = await current_node.invoke(
-                    input=state, callback=callback, state=self.state
-                )
-                self._validate_output(output=output, node_name=current_node.name)
-                await callback.end_node(node_name=current_node.name)
-            else:
-                # Include graph's internal state in the node execution context
-                output = await current_node.invoke(input=state, state=self.state)
-                self._validate_output(output=output, node_name=current_node.name)
-            # add output to state
-            state = {**state, **output}
-            if current_node.is_end:
-                # finish loop if this was an end node
-                break
-            if current_node.is_router:
-                # if we have a router node we let the router decide the next node
-                next_node_name = str(output["choice"])
-                del output["choice"]
-                current_node = self._get_node_by_name(node_name=next_node_name)
-            else:
-                # otherwise, we have linear path
-                current_node = self._get_next_node(current_node=current_node)
-            steps += 1
-            if steps >= self.max_steps:
-                raise Exception(
-                    f"Max steps reached: {self.max_steps}. You can modify this "
-                    "by setting `max_steps` when initializing the Graph object."
-                )
+        result = await self._execute_branch(self.start_node, state, callback, 0)
         # TODO JB: may need to add end callback here to close the queue for every execution
-        if callback and "callback" in state:
+        if callback and "callback" in result:
             await callback.close()
-            del state["callback"]
-        return state
+            del result["callback"]
+        return result
 
     async def execute_many(
         self, inputs: Iterable[dict[str, Any]], *, concurrency: int = 5
@@ -439,11 +514,45 @@ class Graph:
 
     def _get_next_node(self, current_node):
         for edge in self.edges:
-            if edge.source == current_node:
+            if isinstance(edge, Edge) and edge.source == current_node:
                 return edge.destination
+            # we skip JoinEdge because they don't have regular destinations
+            # and next nodes for those are handled in the execute method
         raise Exception(
             f"No outgoing edge found for current node '{current_node.name}'."
         )
+
+    def add_parallel(
+        self, source: NodeProtocol | str, destinations: list[NodeProtocol | str]
+    ):
+        """Add multiple outgoing edges from a single source node to be executed in parallel.
+
+        Args:
+            source: The source node for the parallel branches.
+            destinations: The list of destination nodes for the parallel branches.
+        """
+        for dest in destinations:
+            self.add_edge(source, dest)
+        return self
+
+    def add_join(
+        self, sources: list[NodeProtocol | str], destination: NodeProtocol | str
+    ):
+        """Joins multiple parallel branches into a single branch.
+        
+        Args:
+            sources: The list of source nodes for the join.
+            destination: The destination node for the join.
+        """
+        # get source nodes from graph
+        source_nodes = [self._get_node(node_candidate=source) for source in sources]
+        # get destination node from graph
+        destination_node = self._get_node(node_candidate=destination)
+        # create join edge
+        edge = JoinEdge(source_nodes, destination_node)
+        self.edges.append(edge)
+        self.join_nodes.update(source_nodes)
+        return self
 
     def visualize(self, *, save_path: str | None = None):
         """Render the current graph. If matplotlib is not installed,
@@ -539,4 +648,9 @@ class Graph:
 class Edge:
     def __init__(self, source, destination):
         self.source = source
+        self.destination = destination
+
+class JoinEdge:
+    def __init__(self, sources, destination):
+        self.sources = sources
         self.destination = destination
